@@ -8,6 +8,7 @@ import type { NextRequest, NextResponse } from "next/server";
 import { AppError } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import type { Role } from "@/lib/schemas/shared";
+import { hasAdminAccount } from "@/lib/services/bootstrap-service";
 
 const sessionCookieName = process.env.SESSION_COOKIE_NAME || "pdv_session";
 const csrfCookieName = process.env.CSRF_COOKIE_NAME || "pdv_csrf";
@@ -180,6 +181,10 @@ export async function getOptionalServerSession() {
 }
 
 export async function requireServerSession(allowedRoles?: Role[]) {
+  if (!(await hasAdminAccount())) {
+    redirect("/setup");
+  }
+
   const session = await getOptionalServerSession();
 
   if (!session) {

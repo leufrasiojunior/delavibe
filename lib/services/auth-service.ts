@@ -7,9 +7,20 @@ import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { loginInputSchema } from "@/lib/schemas/auth";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import { hasAdminAccount } from "@/lib/services/bootstrap-service";
 import { normalizeText } from "@/lib/utils/strings";
 
 export async function loginUser(rawInput: unknown, ipAddress: string) {
+  if (!(await hasAdminAccount())) {
+    throw new AppError(
+      409,
+      "initial_admin_required",
+      "O sistema ainda não possui administrador configurado.",
+      null,
+      "Acesse /setup para criar o primeiro administrador antes de fazer login.",
+    );
+  }
+
   const input = await loginInputSchema.parseAsync(rawInput);
   const normalizedUsername = normalizeText(input.username).toLowerCase();
   const rateKey = `login:${normalizedUsername}:${ipAddress}`;
@@ -43,7 +54,7 @@ export async function loginUser(rawInput: unknown, ipAddress: string) {
       "invalid_credentials",
       "Usuário ou senha inválidos.",
       null,
-      "Confira o login inicial cadastrado no seed ou a senha informada.",
+      "Revise o usuário informado ou tente novamente com a senha correta.",
     );
   }
 

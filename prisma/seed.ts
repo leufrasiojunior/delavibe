@@ -1,17 +1,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Role, StockMovementReason } from "@prisma/client";
+import { PrismaClient, StockMovementReason } from "@prisma/client";
 
 const connectionString =
   process.env.DATABASE_URL ||
-  "postgresql://delavibe:delavibe@localhost:5432/delavibe?schema=public";
+  "postgresql://delavibe:change-me-local-only@localhost:5433/delavibe?schema=public";
 
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
-const seedAdmin = {
-  name: "Administrador",
-  username: "admin",
-  passwordHash: "$2b$12$eieT.r5Us5V8wMs3zH9su.8kiQERmBsKo7KViueSCxOhJbpVZlfW6",
-};
 
 const workbookSeedCatalog = [
   { category: "CERVEJA", name: "Heinken lata", stockQty: 96, priceCents: 500 },
@@ -95,29 +90,9 @@ function buildSeedBarcode(index: number) {
 }
 
 async function main() {
-  await prisma.user.upsert({
-    where: { username: seedAdmin.username },
-    update: {
-      name: seedAdmin.name,
-      passwordHash: seedAdmin.passwordHash,
-      role: Role.admin,
-      isActive: true,
-    },
-    create: {
-      name: seedAdmin.name,
-      username: seedAdmin.username,
-      passwordHash: seedAdmin.passwordHash,
-      role: Role.admin,
-    },
-  });
-
   const hasProducts = await prisma.product.count();
 
   if (hasProducts === 0) {
-    const admin = await prisma.user.findFirstOrThrow({
-      where: { username: seedAdmin.username },
-    });
-
     const seedProducts = workbookSeedCatalog.map((product, index) => ({
       name: product.name,
       sku: null,
@@ -144,11 +119,11 @@ async function main() {
     await prisma.stockMovement.createMany({
       data: products.map((product) => ({
         productId: product.id,
-        actorUserId: admin.id,
+        actorUserId: null,
         quantityDelta: product.stockQty,
         resultingStock: product.stockQty,
         reason: StockMovementReason.manual_entry,
-        notes: "Carga inicial do seed a partir da tabela valor Adega",
+        notes: "Carga inicial segura do seed base",
         referenceType: "seed",
       })),
     });

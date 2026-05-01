@@ -13,14 +13,20 @@ PDV local com comandas, baixa automática de estoque, histórico de vendas e bas
 ## Principais pontos
 
 - Login com sessão em cookie `HttpOnly` e proteção CSRF.
+- O primeiro administrador agora é criado no primeiro acesso em `/setup`.
 - Backend valida toda entrada com `zod` e recalcula regras críticas no servidor.
 - Frontend valida respostas da API antes de aceitar dados no estado da UI.
 - Cada venda em comanda reduz estoque e gera movimentação auditável.
 - Cancelamentos e remoções recompõem saldo com rastreabilidade.
 
-## Subir com Docker
+## Ambientes Docker
 
-As variáveis do ambiente Docker já estão embutidas no `docker-compose.yml`.
+- `docker-compose.yml`: desenvolvimento/local. Mantém portas locais, seed opcional e credenciais simplificadas apenas para uso local.
+- `docker-compose.coolify.yml`: produção/Coolify. Usa `postgres:16-bookworm`, não publica a porta do PostgreSQL e expõe só a porta interna `3000` do app para o proxy do Coolify/Traefik.
+
+## Subir localmente com Docker
+
+As variáveis do ambiente Docker local continuam embutidas no `docker-compose.yml`. Esse arquivo não deve ser reutilizado como produção.
 
 Na primeira inicialização do banco, rode:
 
@@ -32,7 +38,7 @@ Esse comando:
 
 - sobe o banco
 - aplica as migrations
-- roda o `seed` inicial
+- roda o `seed` base inicial
 - sobe a aplicação
 
 Depois da primeira inicialização, o uso normal passa a ser:
@@ -71,16 +77,16 @@ npm run migrate:manual
 
 - `db`: PostgreSQL com volume persistente.
 - `migrate`: aplica migrations.
-- `seed`: roda o seed inicial apenas quando chamado explicitamente.
+- `seed`: roda o seed base apenas quando chamado explicitamente.
 - `app`: sobe o Next.js já compilado.
 
 ## Acesso inicial
 
 - URL do PDV: `http://localhost:3010`
 - PostgreSQL exposto em: `localhost:5433`
-- Usuário: `admin`
-- Senha: `TroqueEstaSenha`
-- Essas credenciais iniciais ficam fixadas no seed com hash no código, não no `.env`.
+- Se ainda não existir administrador no banco, o sistema redireciona automaticamente para `http://localhost:3010/setup`.
+- O primeiro administrador é criado nessa tela e o fluxo é bloqueado logo após a criação.
+- O seed não cria mais usuário administrador nem senha padrão.
 - Para acesso local por IP e HTTP, o Compose já deixa `SESSION_COOKIE_SECURE=false`.
 - Se futuramente você publicar com HTTPS, altere `SESSION_COOKIE_SECURE` para `true`.
 
@@ -193,6 +199,51 @@ docker compose up -d --build app
 ## `.env` Local
 
 O arquivo `.env.example` continua útil apenas se você quiser rodar o projeto fora do Docker, por exemplo com `npm run dev`.
+
+Regras importantes:
+
+- nunca commite `.env` com senhas reais
+- o repositório mantém somente `.env.example` com placeholders locais
+- `POSTGRES_PASSWORD=change-me-local-only` no exemplo é apenas placeholder, não uma senha de produção
+
+## Deploy no Coolify
+
+Use o arquivo [docker-compose.coolify.yml](/home/ubuntu/pessoal/delavibe/docker-compose.coolify.yml) para produção.
+
+Características desse compose:
+
+- serviços `postgres`, `migrate` e `app`
+- `postgres:16-bookworm`
+- volume persistente para o banco
+- `healthcheck` no PostgreSQL
+- `app` depende do banco saudável e das migrations concluídas
+- `DATABASE_URL` aponta para `postgres:5432` na rede interna
+- sem `ports` para o PostgreSQL
+- `app` usa `expose: 3000`, que é a porta interna real do container confirmada no `Dockerfile`
+
+No Coolify:
+
+- configure `POSTGRES_PASSWORD` como variável de ambiente do serviço
+- se desejar, sobrescreva `POSTGRES_USER` e `POSTGRES_DB`
+- mantenha `SESSION_COOKIE_SECURE=true`
+- publique o domínio no serviço `app`, apontando para a porta interna `3000`
+- deixe o PostgreSQL somente na rede interna do projeto
+
+Fluxo esperado em produção:
+
+- o seed não cria admin padrão
+- no primeiro acesso ao domínio do app, o sistema abre `/setup`
+- a primeira conta criada recebe perfil `admin`
+- depois disso, `/setup` passa a redirecionar para `login` ou para a área autenticada
+
+## Seed
+
+O seed atual é seguro para produção no sentido de não criar credenciais.
+
+- mantém apenas dados base não sensíveis
+- não contém senha hardcoded
+- não cria usuário administrador
+- registra movimentações iniciais de estoque sem atrelar credencial padrão
 
 ## Observações
 
