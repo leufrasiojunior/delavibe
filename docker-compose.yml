@@ -1,3 +1,5 @@
+# Ambiente exclusivo para desenvolvimento/local.
+# Não use este arquivo como base de produção.
 name: delavibe
 
 services:
@@ -5,16 +7,20 @@ services:
     image: postgres:16-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_DB: delavibe
-      POSTGRES_USER: delavibe
-      POSTGRES_PASSWORD: delavibe
+      POSTGRES_DB: ${POSTGRES_DB:-delavibe}
+      POSTGRES_USER: ${POSTGRES_USER:-delavibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
       TZ: America/Sao_Paulo
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U delavibe -d delavibe"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-delavibe} -d ${POSTGRES_DB:-delavibe}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,7 +33,7 @@ services:
       target: runner
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://delavibe:delavibe@db:5432/delavibe?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
       SESSION_COOKIE_NAME: pdv_session
       SESSION_COOKIE_SECURE: "false"
       CSRF_COOKIE_NAME: pdv_csrf
@@ -50,7 +56,7 @@ services:
       target: builder
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://delavibe:delavibe@db:5432/delavibe?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
       SESSION_COOKIE_NAME: pdv_session
       SESSION_COOKIE_SECURE: "false"
       CSRF_COOKIE_NAME: pdv_csrf
@@ -73,7 +79,7 @@ services:
     restart: "no"
     profiles: ["seed"]
     environment:
-      DATABASE_URL: postgresql://delavibe:delavibe@db:5432/delavibe?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
       SESSION_COOKIE_NAME: pdv_session
       SESSION_COOKIE_SECURE: "false"
       CSRF_COOKIE_NAME: pdv_csrf
