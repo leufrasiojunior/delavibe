@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  operator
+}
+
+enum CommandaStatus {
+  open
+  closed
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  pix
+  debit
+  credit
+}
+
+enum StockMovementReason {
+  manual_entry
+  manual_adjustment
+  comanda_item_add
+  comanda_item_remove
+  comanda_cancel_reversal
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String
+  username      String          @unique
+  passwordHash  String
+  role          Role            @default(operator)
+  isActive      Boolean         @default(true)
+  sessions      Session[]
+  commandas     Commanda[]
+  payments      Payment[]
+  stockMoves    StockMovement[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  csrfToken  String
+  expiresAt  DateTime
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Product {
+  id            String          @id @default(cuid())
+  name          String
+  sku           String?         @unique
+  barcode       String          @unique
+  category      String?
+  imagePath     String?
+  unit          String          @default("un")
+  priceCents    Int
+  costCents     Int?
+  stockQty      Int             @default(0)
+  minimumStock  Int             @default(0)
+  isActive      Boolean         @default(true)
+  items         ComandaItem[]
+  stockMoves    StockMovement[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([name])
+  @@index([category])
+}
+
+model Commanda {
+  id            String          @id @default(cuid())
+  number        Int             @unique @default(autoincrement())
+  status        CommandaStatus  @default(open)
+  customerName  String?
+  notes         String?
+  subtotalCents Int             @default(0)
+  discountCents Int             @default(0)
+  totalCents    Int             @default(0)
+  operatorId    String
+  operator      User            @relation(fields: [operatorId], references: [id])
+  items         ComandaItem[]
+  payments      Payment[]
+  closedAt      DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([operatorId])
+}
+
+model ComandaItem {
+  id             String    @id @default(cuid())
+  comandaId      String
+  productId      String
+  quantity       Int
+  unitPriceCents Int
+  subtotalCents  Int
+  comanda        Commanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  product        Product   @relation(fields: [productId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([comandaId, createdAt])
+  @@index([productId])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  comandaId   String
+  operatorId  String
+  method      PaymentMethod
+  amountCents Int
+  notes       String?
+  comanda     Commanda      @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  operator    User          @relation(fields: [operatorId], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@index([comandaId, createdAt])
+  @@index([operatorId])
+  @@index([method])
+}
+
+model StockMovement {
+  id             String               @id @default(cuid())
+  productId      String
+  actorUserId    String?
+  quantityDelta  Int
+  resultingStock Int
+  reason         StockMovementReason
+  notes          String?
+  referenceType  String?
+  referenceId    String?
+  product        Product              @relation(fields: [productId], references: [id])
+  actor          User?                @relation(fields: [actorUserId], references: [id])
+  createdAt      DateTime             @default(now())
+
+  @@index([productId, createdAt])
+  @@index([actorUserId])
+  @@index([reason])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+}

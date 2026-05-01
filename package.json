@@ -1,0 +1,53 @@
+{
+  "name": "delavibe-pdv",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "images:build": "docker compose build app migrate seed",
+    "images:export": "docker save -o delavibe-images.tar delavibe/app:local delavibe/migrate:local delavibe/seed:local",
+    "images:import": "docker load -i delavibe-images.tar",
+    "init": "docker compose up -d db migrate seed app",
+    "init:build": "docker compose up -d --build db migrate seed app",
+    "up": "docker compose up -d db migrate app",
+    "up:build": "docker compose up -d --build db migrate app",
+    "up:logs": "docker compose up db migrate app",
+    "down": "docker compose down",
+    "down:volumes": "docker compose down -v",
+    "migrate:manual": "docker compose run --rm migrate",
+    "seed:manual": "docker compose run --rm seed",
+    "logs:migrate": "docker compose logs migrate --tail=200",
+    "logs:seed": "docker compose logs seed --tail=200",
+    "logs:app": "docker compose logs app --tail=200",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "prisma:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "bcryptjs": "3.0.2",
+    "dotenv": "^16.6.1",
+    "next": "^16.2.3",
+    "pg": "^8.20.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "recharts": "^3.8.1",
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.14.0",
+    "@types/react": "19.0.12",
+    "@types/react-dom": "19.0.4",
+    "prisma": "^7.7.0",
+    "tsx": "4.19.3",
+    "typescript": "5.8.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
