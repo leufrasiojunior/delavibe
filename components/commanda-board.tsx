@@ -108,6 +108,8 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
   const [commandaSearch, setCommandaSearch] = useState("");
   const [activeCommandaTab, setActiveCommandaTab] = useState<CommandaBoardStatusTab>("open");
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, string>>({});
+  const [itemQuantityDrafts, setItemQuantityDrafts] = useState<Record<string, string>>({});
+  const [pendingItemIds, setPendingItemIds] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [payments, setPayments] = useState<PaymentDraft[]>([createPaymentDraft()]);
@@ -190,6 +192,17 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
     setRenameCustomerName(selectedComanda?.customerName ?? "");
   }, [selectedComanda?.id, selectedComanda?.customerName]);
 
+  useEffect(() => {
+    if (!selectedComanda) {
+      setItemQuantityDrafts({});
+      return;
+    }
+
+    setItemQuantityDrafts(
+      Object.fromEntries(selectedComanda.items.map((item) => [item.id, String(item.quantity)])),
+    );
+  }, [selectedComanda]);
+
   function quantityFor(productId: string) {
     const parsed = Number(quantityByProduct[productId] ?? "1");
 
@@ -205,6 +218,37 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       ...current,
       [productId]: value,
     }));
+  }
+
+  function setCommandaItemDraft(itemId: string, value: string) {
+    setItemQuantityDrafts((current) => ({
+      ...current,
+      [itemId]: value,
+    }));
+  }
+
+  function markItemPending(itemId: string, pending: boolean) {
+    setPendingItemIds((current) => {
+      if (pending) {
+        return current.includes(itemId) ? current : [...current, itemId];
+      }
+
+      return current.filter((currentItemId) => currentItemId !== itemId);
+    });
+  }
+
+  function isItemPending(itemId: string) {
+    return pendingItemIds.includes(itemId);
+  }
+
+  function getDraftQuantity(item: CommandaDto["items"][number]) {
+    const parsed = Number(itemQuantityDrafts[item.id] ?? String(item.quantity));
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return item.quantity;
+    }
+
+    return Math.floor(parsed);
   }
 
   function setPaymentAmount(index: number, value: string) {
@@ -337,10 +381,59 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       if (response.warning) {
         setFeedback(response.warning);
       } else {
-        setFeedback(`${product.name} adicionado(a) na comanda #${response.commanda.number}.`);
+        setFeedback(`Quantidade de ${product.name} atualizada na comanda #${response.commanda.number}.`);
       }
 
       router.refresh();
+    });
+  }
+
+  function persistItemQuantity(item: CommandaDto["items"][number], requestedQuantity: string | number) {
+    if (!selectedComanda || selectedComanda.status !== "open") {
+      return;
+    }
+
+    const parsedQuantity = typeof requestedQuantity === "number" ? requestedQuantity : Number(requestedQuantity);
+    const nextQuantity = Number.isFinite(parsedQuantity) ? Math.floor(parsedQuantity) : Number.NaN;
+
+    if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+      setCommandaItemDraft(item.id, String(item.quantity));
+      setFeedback(null);
+      setError("A quantidade do item deve ser maior que zero.");
+      return;
+    }
+
+    setCommandaItemDraft(item.id, String(nextQuantity));
+
+    if (nextQuantity === item.quantity) {
+      return;
+    }
+
+    markItemPending(item.id, true);
+
+    withHandledAction(async () => {
+      try {
+        const response = await apiFetch(
+          `/api/commandas/${selectedComanda.id}/items/${item.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              quantity: nextQuantity,
+            }),
+          },
+          commandaMutationResponseSchema,
+        );
+
+        if (response.warning) {
+          setFeedback(response.warning);
+        } else {
+          setFeedback(`Quantidade de ${item.productName} atualizada na comanda #${response.commanda.number}.`);
+        }
+
+        router.refresh();
+      } finally {
+        markItemPending(item.id, false);
+      }
     });
   }
 
@@ -349,14 +442,20 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       return;
     }
 
+    markItemPending(itemId, true);
+
     withHandledAction(async () => {
-      await apiFetch(
-        `/api/commandas/${selectedComanda.id}/items/${itemId}`,
-        { method: "DELETE" },
-        commandaMutationResponseSchema,
-      );
-      setFeedback("Item removido e estoque recomposto.");
-      router.refresh();
+      try {
+        await apiFetch(
+          `/api/commandas/${selectedComanda.id}/items/${itemId}`,
+          { method: "DELETE" },
+          commandaMutationResponseSchema,
+        );
+        setFeedback("Item removido e estoque recomposto.");
+        router.refresh();
+      } finally {
+        markItemPending(itemId, false);
+      }
     });
   }
 
@@ -644,7 +743,45 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                         <strong>{item.productName}</strong>
                         <span className="table-subtitle">{item.productSku}</span>
                       </td>
-                      <td>{item.quantity}</td>
+                      <td>
+                        {selectedComanda.status === "open" ? (
+                          <div className="quantity-control quantity-control-inline">
+                            <button
+                              className="button button-secondary compact"
+                              type="button"
+                              onClick={() => persistItemQuantity(item, getDraftQuantity(item) - 1)}
+                              disabled={isPending || isItemPending(item.id) || getDraftQuantity(item) <= 1}
+                            >
+                              -
+                            </button>
+                            <input
+                              value={itemQuantityDrafts[item.id] ?? String(item.quantity)}
+                              type="number"
+                              min="1"
+                              step="1"
+                              onChange={(event) => setCommandaItemDraft(item.id, event.target.value)}
+                              onBlur={() => persistItemQuantity(item, itemQuantityDrafts[item.id] ?? String(item.quantity))}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  persistItemQuantity(item, itemQuantityDrafts[item.id] ?? String(item.quantity));
+                                }
+                              }}
+                              disabled={isPending || isItemPending(item.id)}
+                            />
+                            <button
+                              className="button button-secondary compact"
+                              type="button"
+                              onClick={() => persistItemQuantity(item, getDraftQuantity(item) + 1)}
+                              disabled={isPending || isItemPending(item.id)}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          item.quantity
+                        )}
+                      </td>
                       <td>{formatCurrency(item.subtotalCents)}</td>
                       <td className="table-actions">
                         {selectedComanda.status === "open" ? (
@@ -652,7 +789,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                             className="button button-secondary compact"
                             type="button"
                             onClick={() => handleRemoveItem(item.id)}
-                            disabled={isPending}
+                            disabled={isPending || isItemPending(item.id)}
                           >
                             Remover
                           </button>

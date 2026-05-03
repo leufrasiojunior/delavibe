@@ -9,10 +9,12 @@ import {
   createCommandaInputSchema,
   type CommandaListStatusFilter,
   type CommandaDto,
+  updateCommandaItemQuantityInputSchema,
   updateCommandaCustomerNameInputSchema,
 } from "@/lib/schemas/commanda";
 import { calculateCommandaTotals, sumPaymentCents } from "@/lib/utils/totals";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import { buildCommandaItemAddition, buildCommandaItemQuantityUpdate } from "@/lib/utils/commanda-items";
 
 const commandaInclude = {
   operator: true,
@@ -282,21 +284,40 @@ export async function addItemToCommanda(
       );
     }
 
-    const item = await tx.comandaItem.create({
-      data: {
+    const existingItem = await tx.comandaItem.findFirst({
+      where: {
         comandaId: commandaId,
         productId: input.productId,
-        quantity: input.quantity,
-        unitPriceCents: product.priceCents,
-        subtotalCents: product.priceCents * input.quantity,
       },
+      orderBy: { createdAt: "asc" },
     });
+
+    const nextItemState = buildCommandaItemAddition(existingItem?.quantity ?? 0, input.quantity, product.priceCents);
+
+    const item = existingItem
+      ? await tx.comandaItem.update({
+          where: { id: existingItem.id },
+          data: {
+            quantity: nextItemState.nextQuantity,
+            unitPriceCents: product.priceCents,
+            subtotalCents: nextItemState.subtotalCents,
+          },
+        })
+      : await tx.comandaItem.create({
+          data: {
+            comandaId: commandaId,
+            productId: input.productId,
+            quantity: nextItemState.nextQuantity,
+            unitPriceCents: product.priceCents,
+            subtotalCents: nextItemState.subtotalCents,
+          },
+        });
 
     const updatedProduct = await tx.product.update({
       where: { id: product.id },
       data: {
         stockQty: {
-          increment: -input.quantity,
+          increment: nextItemState.stockDelta,
         },
       },
     });
@@ -305,7 +326,7 @@ export async function addItemToCommanda(
       data: {
         productId: product.id,
         actorUserId,
-        quantityDelta: -input.quantity,
+        quantityDelta: nextItemState.stockDelta,
         resultingStock: updatedProduct.stockQty,
         reason: "comanda_item_add",
         referenceType: "commanda_item",
@@ -342,6 +363,136 @@ export async function addItemToCommanda(
     userId: actorUserId,
     entityId: commandaId,
     productId: input.productId,
+    quantity: input.quantity,
+  });
+
+  if (result.warning) {
+    logger.warn("commanda_stock_warning", {
+      userId: actorUserId,
+      entityId: commandaId,
+      warning: result.warning,
+    });
+  }
+
+  return {
+    commanda: toCommandaDto(result.commanda),
+    warning: result.warning,
+  };
+}
+
+export async function updateCommandaItemQuantity(
+  commandaId: string,
+  itemId: string,
+  rawInput: unknown,
+  actorUserId: string,
+  ipAddress: string,
+) {
+  const input = await updateCommandaItemQuantityInputSchema.parseAsync(rawInput);
+
+  const result = await db.$transaction(async (tx) => {
+    const item = await tx.comandaItem.findUnique({
+      where: { id: itemId },
+      include: {
+        product: true,
+        comanda: true,
+      },
+    });
+
+    if (!item || item.comandaId !== commandaId) {
+      throw new AppError(
+        404,
+        "item_not_found",
+        "Item da comanda não encontrado.",
+        null,
+        "Atualize a comanda antes de tentar alterar o item novamente.",
+      );
+    }
+
+    if (item.comanda.status !== CommandaStatus.open) {
+      throw new AppError(
+        409,
+        "commanda_closed",
+        "A comanda não está aberta para edição.",
+        null,
+        "Somente comandas abertas podem ser alteradas.",
+      );
+    }
+
+    const nextItemState = buildCommandaItemQuantityUpdate(item.quantity, input.quantity, item.product.priceCents);
+
+    if (nextItemState.quantityDelta === 0) {
+      const currentCommanda = await loadCommandaOrThrow(tx, commandaId);
+
+      return {
+        commanda: currentCommanda,
+        warning:
+          item.product.stockQty < 0
+            ? `Estoque negativo para ${item.product.name}: saldo atual ${item.product.stockQty}.`
+            : item.product.stockQty <= item.product.minimumStock
+              ? `Estoque baixo para ${item.product.name}: saldo atual ${item.product.stockQty}.`
+              : null,
+      };
+    }
+
+    await tx.comandaItem.update({
+      where: { id: item.id },
+      data: {
+        quantity: nextItemState.nextQuantity,
+        unitPriceCents: item.product.priceCents,
+        subtotalCents: nextItemState.subtotalCents,
+      },
+    });
+
+    const updatedProduct = await tx.product.update({
+      where: { id: item.productId },
+      data: {
+        stockQty: {
+          increment: nextItemState.stockDelta,
+        },
+      },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        productId: item.productId,
+        actorUserId,
+        quantityDelta: nextItemState.stockDelta,
+        resultingStock: updatedProduct.stockQty,
+        reason: nextItemState.stockDelta < 0 ? "comanda_item_add" : "comanda_item_remove",
+        referenceType: "commanda_item",
+        referenceId: item.id,
+      },
+    });
+
+    const updatedCommanda = await recalculateOpenCommandaTotals(tx, commandaId);
+
+    return {
+      commanda: updatedCommanda,
+      warning:
+        updatedProduct.stockQty < 0
+          ? `Estoque negativo para ${item.product.name}: saldo atual ${updatedProduct.stockQty}.`
+          : updatedProduct.stockQty <= item.product.minimumStock
+            ? `Estoque baixo para ${item.product.name}: saldo atual ${updatedProduct.stockQty}.`
+            : null,
+    };
+  });
+
+  await logAuditEvent({
+    actorUserId,
+    action: "commanda_item_quantity_updated",
+    entityType: "commanda",
+    entityId: commandaId,
+    ipAddress,
+    metadata: {
+      itemId,
+      quantity: input.quantity,
+    },
+  });
+
+  logger.info("commanda_item_quantity_updated", {
+    userId: actorUserId,
+    entityId: commandaId,
+    itemId,
     quantity: input.quantity,
   });
 
