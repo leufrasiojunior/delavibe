@@ -30,12 +30,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-delavibe}?schema=public
       NODE_ENV: production
       SESSION_COOKIE_SECURE: "true"
-      SESSION_COOKIE_NAME: pdv_session
-      CSRF_COOKIE_NAME: pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: pdv_csrf
+      SESSION_COOKIE_NAME: __Host-pdv_session
+      CSRF_COOKIE_NAME: __Host-pdv_csrf
+      NEXT_PUBLIC_CSRF_COOKIE_NAME: __Host-pdv_csrf
       SESSION_TTL_HOURS: "12"
       APP_TIMEZONE: America/Sao_Paulo
       NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
+      TRUST_PROXY_HEADERS: "true"
       TZ: America/Sao_Paulo
     depends_on:
       postgres:
@@ -52,12 +53,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-delavibe}?schema=public
       NODE_ENV: production
       SESSION_COOKIE_SECURE: "true"
-      SESSION_COOKIE_NAME: pdv_session
-      CSRF_COOKIE_NAME: pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: pdv_csrf
+      SESSION_COOKIE_NAME: __Host-pdv_session
+      CSRF_COOKIE_NAME: __Host-pdv_csrf
+      NEXT_PUBLIC_CSRF_COOKIE_NAME: __Host-pdv_csrf
       SESSION_TTL_HOURS: "12"
       APP_TIMEZONE: America/Sao_Paulo
       NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
+      TRUST_PROXY_HEADERS: "true"
       TZ: America/Sao_Paulo
     depends_on:
       postgres:

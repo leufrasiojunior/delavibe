@@ -234,16 +234,14 @@ export async function updateCommandaCustomerName(
     ipAddress,
     metadata: {
       number: existingCommanda.number,
-      previousCustomerName: existingCommanda.customerName,
-      currentCustomerName: input.customerName,
+      customerNameChanged: true,
     },
   });
 
   logger.info("commanda_customer_renamed", {
     userId: actorUserId,
     entityId: commandaId,
-    previousCustomerName: existingCommanda.customerName,
-    currentCustomerName: input.customerName,
+    customerNameChanged: true,
   });
 
   return toCommandaDto(updatedCommanda);

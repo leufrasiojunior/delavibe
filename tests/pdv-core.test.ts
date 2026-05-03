@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { assertRateLimit, getRateLimitState, resetRateLimit } from "@/lib/auth/rate-limit";
+import { handleProtectedRoute } from "@/lib/api/route-security";
+import { parseJsonBody } from "@/lib/api/response";
+import { assertRateLimit, buildRateLimitKey, getRateLimitState, resetRateLimit } from "@/lib/auth/rate-limit";
+import { assertCsrfProtection } from "@/lib/auth/session";
 import {
+  commandaListQuerySchema,
   closeCommandaInputSchema,
   updateCommandaCustomerNameInputSchema,
   updateCommandaItemQuantityInputSchema,
@@ -176,14 +181,185 @@ test("rejeita fechamento com linha de pagamento preenchida sem valor", async () 
   );
 });
 
-test("limita tentativas com janela simples em memória", () => {
-  const key = "test-rate-limit";
-  resetRateLimit(key);
+test("limita tentativas de login por rota, IP e usuário", async () => {
+  const request = new NextRequest("http://localhost/api/auth/login", {
+    method: "POST",
+    headers: {
+      origin: "http://localhost",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      username: "admin",
+      password: "12345678",
+    }),
+  });
+  const key = buildRateLimitKey("auth_login", request, null, {
+    identifier: "admin",
+  });
 
-  assert.doesNotThrow(() => assertRateLimit(key, 2, 1_000));
-  assert.doesNotThrow(() => assertRateLimit(key, 2, 1_000));
-  assert.throws(() => assertRateLimit(key, 2, 1_000), /Muitas tentativas/);
-  assert.ok(getRateLimitState(key));
+  await resetRateLimit(key);
+  await assert.doesNotReject(() => assertRateLimit("auth_login", request, null, { identifier: "admin" }));
+  await assert.doesNotReject(() => assertRateLimit("auth_login", request, null, { identifier: "admin" }));
+  await assert.doesNotReject(() => assertRateLimit("auth_login", request, null, { identifier: "admin" }));
+  await assert.doesNotReject(() => assertRateLimit("auth_login", request, null, { identifier: "admin" }));
+  await assert.doesNotReject(() => assertRateLimit("auth_login", request, null, { identifier: "admin" }));
+  await assert.rejects(
+    () => assertRateLimit("auth_login", request, null, { identifier: "admin" }),
+    /Muitas tentativas/i,
+  );
+  assert.ok(await getRateLimitState(key));
+});
+
+test("limita escritas autenticadas por usuário, IP e rota", async () => {
+  const request = new NextRequest("http://localhost/api/products", {
+    method: "POST",
+  });
+  const session = {
+    user: {
+      id: "user-1",
+    },
+  };
+  const key = buildRateLimitKey("write_authenticated", request, session);
+
+  await resetRateLimit(key);
+
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    await assert.doesNotReject(() => assertRateLimit("write_authenticated", request, session));
+  }
+
+  await assert.rejects(
+    () => assertRateLimit("write_authenticated", request, session),
+    /Muitas tentativas/i,
+  );
+});
+
+test("rejeita imagePath remoto ou com path traversal", async () => {
+  await assert.rejects(
+    () =>
+      createProductInputSchema.parseAsync({
+        name: "Produto inseguro",
+        sku: "",
+        barcode: "ABC-123",
+        category: "",
+        imagePath: "https://evil.test/payload.png",
+        unit: "un",
+        price: "R$ 10,00",
+        cost: "",
+        stockQty: "1",
+        minimumStock: "0",
+      }),
+    /caminhos locais/i,
+  );
+
+  await assert.rejects(
+    () =>
+      createProductInputSchema.parseAsync({
+        name: "Produto inseguro",
+        sku: "",
+        barcode: "ABC-123",
+        category: "",
+        imagePath: "/../../etc/passwd",
+        unit: "un",
+        price: "R$ 10,00",
+        cost: "",
+        stockQty: "1",
+        minimumStock: "0",
+      }),
+    /caminhos locais/i,
+  );
+});
+
+test("valida e limita query params da listagem de comandas", () => {
+  const parsed = commandaListQuerySchema.parse({
+    status: "closed",
+    q: "  Maria   Clara  ",
+  });
+
+  assert.deepEqual(parsed, {
+    status: "closed",
+    q: "Maria Clara",
+  });
+
+  assert.throws(
+    () =>
+      commandaListQuerySchema.parse({
+        status: "open",
+        q: "x".repeat(81),
+      }),
+    /no máximo 80 caracteres/i,
+  );
+});
+
+test("rejeita mutação sem origin permitido no wrapper central", async () => {
+  const response = await handleProtectedRoute(
+    new NextRequest("http://localhost/api/setup/initial-admin", {
+      method: "POST",
+      headers: {
+        origin: "http://evil.test",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Admin Seguranca",
+        username: "admin",
+        password: "12345678",
+        confirmPassword: "12345678",
+      }),
+    }),
+    {
+      auth: "none",
+      requireJsonBody: true,
+      requireOrigin: true,
+      rateLimitPolicy: "bootstrap_setup",
+    },
+    async () => NextResponse.json({ ok: true }),
+  );
+
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.equal(payload.error.code, "invalid_origin");
+});
+
+test("rejeita payload acima do limite antes do parse JSON", async () => {
+  await assert.rejects(
+    () =>
+      parseJsonBody(
+        new NextRequest("http://localhost/api/test", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            notes: "a".repeat(20_000),
+          }),
+        }),
+      ),
+    /excede o limite permitido/i,
+  );
+});
+
+test("rejeita mutação sem token csrf válido", () => {
+  const request = new NextRequest("http://localhost/api/products", {
+    method: "POST",
+    headers: {
+      cookie: "pdv_csrf=csrf-cookie",
+    },
+  });
+
+  assert.throws(
+    () =>
+      assertCsrfProtection(request, {
+        sessionId: "session-1",
+        csrfToken: "csrf-header",
+        expiresAt: new Date().toISOString(),
+        user: {
+          id: "user-1",
+          name: "Admin",
+          username: "admin",
+          role: "admin",
+        },
+      }),
+    /verificação de segurança/i,
+  );
 });
 
 test("usa últimos 7 dias no dashboard analítico quando a URL está vazia ou inválida", () => {

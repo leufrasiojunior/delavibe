@@ -9,8 +9,12 @@ import {
   optionalPositiveMoneyField,
   requiredIntegerField,
 } from "@/lib/schemas/parsers";
+import {
+  customerNameFieldSchema,
+  notesFieldSchema,
+  searchQueryFieldSchema,
+} from "@/lib/schemas/string-fields";
 import { toCents } from "@/lib/utils/money";
-import { normalizeOptionalText } from "@/lib/utils/strings";
 
 export const paymentSchema = z.object({
   id: z.string(),
@@ -53,19 +57,23 @@ export const commandaSchema = z.object({
 
 export const commandaListSchema = z.array(commandaSchema);
 export const commandaListStatusSchema = z.enum(["open", "closed", "all"]);
+export const commandaListQuerySchema = z.object({
+  status: commandaListStatusSchema.optional().default("open"),
+  q: searchQueryFieldSchema,
+});
 
 export const createCommandaInputSchema = z.object({
-  customerName: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  customerName: customerNameFieldSchema,
+  notes: notesFieldSchema,
 }).transform((data) => ({
-  customerName: normalizeOptionalText(data.customerName),
-  notes: normalizeOptionalText(data.notes),
+  customerName: data.customerName ?? null,
+  notes: data.notes ?? null,
 }));
 
 export const updateCommandaCustomerNameInputSchema = z.object({
-  customerName: z.string().nullable(),
+  customerName: customerNameFieldSchema,
 }).transform((data) => ({
-  customerName: normalizeOptionalText(data.customerName),
+  customerName: data.customerName ?? null,
 }));
 
 export const addCommandaItemInputSchema = z.object({
@@ -91,7 +99,7 @@ const paymentInputSchema = z.object({
     invalid: "Informe um valor monetário válido para o pagamento.",
     positive: "O valor do pagamento deve ser maior que zero.",
   }),
-  notes: z.string().optional().nullable(),
+  notes: notesFieldSchema,
 });
 
 export const closeCommandaInputSchema = z
@@ -102,7 +110,7 @@ export const closeCommandaInputSchema = z
     let validPaymentCount = 0;
 
     data.payments.forEach((payment, index) => {
-      const notes = normalizeOptionalText(payment.notes);
+      const notes = payment.notes;
       const hasAnyContent = payment.amount != null || notes !== null;
 
       if (!hasAnyContent) {
@@ -133,13 +141,13 @@ export const closeCommandaInputSchema = z
       .map((payment) => ({
         method: payment.method,
         amountCents: payment.amount == null ? null : toCents(payment.amount),
-        notes: normalizeOptionalText(payment.notes),
+        notes: payment.notes ?? null,
       }))
       .filter((payment) => payment.amountCents != null || payment.notes !== null)
       .map((payment) => ({
         method: payment.method,
         amountCents: payment.amountCents as number,
-        notes: payment.notes,
+        notes: payment.notes ?? null,
       })),
   }));
 
