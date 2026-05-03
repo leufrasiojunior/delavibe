@@ -77,6 +77,14 @@ export const addCommandaItemInputSchema = z.object({
   }),
 });
 
+export const updateCommandaItemQuantityInputSchema = z.object({
+  quantity: requiredIntegerField({
+    required: "Informe a quantidade do item.",
+    invalid: "Informe uma quantidade válida.",
+    positive: "A quantidade deve ser maior que zero.",
+  }),
+});
+
 const paymentInputSchema = z.object({
   method: paymentMethodSchema,
   amount: optionalPositiveMoneyField({

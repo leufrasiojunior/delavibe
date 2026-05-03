@@ -3,11 +3,16 @@ import test from "node:test";
 import { ZodError } from "zod";
 
 import { assertRateLimit, getRateLimitState, resetRateLimit } from "@/lib/auth/rate-limit";
-import { closeCommandaInputSchema, updateCommandaCustomerNameInputSchema } from "@/lib/schemas/commanda";
+import {
+  closeCommandaInputSchema,
+  updateCommandaCustomerNameInputSchema,
+  updateCommandaItemQuantityInputSchema,
+} from "@/lib/schemas/commanda";
 import { buildDashboardAnalytics, resolveDashboardAnalyticsRange } from "@/lib/services/report-analytics";
 import { createProductInputSchema } from "@/lib/schemas/product";
 import { createStockMovementInputSchema } from "@/lib/schemas/stock";
 import { filterCommandasByStatusAndCustomerName } from "@/lib/utils/commandas";
+import { buildCommandaItemAddition, buildCommandaItemQuantityUpdate } from "@/lib/utils/commanda-items";
 import { calculateCommandaTotals } from "@/lib/utils/totals";
 
 test("normaliza cadastro de produto e converte preço para centavos", async () => {
@@ -109,6 +114,53 @@ test("normaliza o nome do cliente ao renomear a comanda", async () => {
 
   assert.deepEqual(parsedWithoutName, {
     customerName: null,
+  });
+});
+
+test("valida atualizacao de quantidade da comanda com inteiro positivo", async () => {
+  const parsed = await updateCommandaItemQuantityInputSchema.parseAsync({
+    quantity: "4",
+  });
+
+  assert.deepEqual(parsed, {
+    quantity: 4,
+  });
+
+  await assert.rejects(
+    () =>
+      updateCommandaItemQuantityInputSchema.parseAsync({
+        quantity: "0",
+      }),
+    /maior que zero/i,
+  );
+});
+
+test("soma o mesmo item da comanda usando o preco atual", () => {
+  const nextItem = buildCommandaItemAddition(2, 3, 1800);
+
+  assert.deepEqual(nextItem, {
+    nextQuantity: 5,
+    subtotalCents: 9000,
+    stockDelta: -3,
+  });
+});
+
+test("recalcula delta de estoque ao editar quantidade do item da comanda", () => {
+  const increase = buildCommandaItemQuantityUpdate(2, 5, 1800);
+  const decrease = buildCommandaItemQuantityUpdate(5, 3, 1800);
+
+  assert.deepEqual(increase, {
+    nextQuantity: 5,
+    quantityDelta: 3,
+    subtotalCents: 9000,
+    stockDelta: -3,
+  });
+
+  assert.deepEqual(decrease, {
+    nextQuantity: 3,
+    quantityDelta: -2,
+    subtotalCents: 5400,
+    stockDelta: 2,
   });
 });
 
