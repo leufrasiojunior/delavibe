@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 
 import { ZodError } from "zod";
@@ -12,24 +13,46 @@ export class AppError extends Error {
     message: string,
     public readonly details?: unknown,
     public readonly hint?: string | null,
+    public readonly headers?: HeadersInit,
   ) {
     super(message);
   }
 }
 
-export function ok<T>(data: T, requestId: string, status = 200) {
-  return NextResponse.json(
+function applyDefaultApiHeaders(response: NextResponse, requestId: string, extraHeaders?: HeadersInit) {
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("X-Request-Id", requestId);
+
+  if (extraHeaders) {
+    const headers = new Headers(extraHeaders);
+
+    for (const [key, value] of headers.entries()) {
+      response.headers.set(key, value);
+    }
+  }
+
+  return response;
+}
+
+export function ok<T>(data: T, requestId: string, status = 200, headers?: HeadersInit) {
+  return applyDefaultApiHeaders(
+    NextResponse.json(
     {
       data,
       error: null,
       requestId,
     },
     { status },
+    ),
+    requestId,
+    headers,
   );
 }
 
 function errorPayload(error: AppError, requestId: string) {
-  return NextResponse.json(
+  return applyDefaultApiHeaders(
+    NextResponse.json(
     {
       data: null,
       error: {
@@ -40,7 +63,10 @@ function errorPayload(error: AppError, requestId: string) {
       },
       requestId,
     },
-    { status: error.status },
+    { status: error.status, headers: error.headers },
+    ),
+    requestId,
+    error.headers,
   );
 }
 
@@ -145,8 +171,22 @@ export async function parseJsonBody<T>(
 export async function parseJsonBody<T>(
   request: NextRequest,
   schema?: { parseAsync(data: unknown): Promise<T> },
+  options?: { maxBytes?: number },
 ) {
-  const body = await request.json().catch(() => {
+  const maxBytes = options?.maxBytes ?? 16_384;
+  const contentLength = Number(request.headers.get("content-length") || "0");
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new AppError(
+      400,
+      "payload_too_large",
+      "O corpo da requisição excede o limite permitido.",
+      { maxBytes },
+      `Reduza o payload para no máximo ${maxBytes} bytes.`,
+    );
+  }
+
+  const rawBody = await request.text().catch(() => {
     throw new AppError(
       400,
       "invalid_json",
@@ -155,6 +195,42 @@ export async function parseJsonBody<T>(
       "Verifique se o JSON enviado está bem formado.",
     );
   });
+
+  const byteLength = Buffer.byteLength(rawBody, "utf8");
+
+  if (byteLength > maxBytes) {
+    throw new AppError(
+      400,
+      "payload_too_large",
+      "O corpo da requisição excede o limite permitido.",
+      { maxBytes },
+      `Reduza o payload para no máximo ${maxBytes} bytes.`,
+    );
+  }
+
+  if (rawBody.trim().length === 0) {
+    throw new AppError(
+      400,
+      "invalid_json",
+      "Não foi possível interpretar o corpo da requisição.",
+      null,
+      "Envie um JSON válido no corpo da requisição.",
+    );
+  }
+
+  const body = (() => {
+    try {
+      return JSON.parse(rawBody) as unknown;
+    } catch {
+      throw new AppError(
+        400,
+        "invalid_json",
+        "Não foi possível interpretar o corpo da requisição.",
+        null,
+        "Verifique se o JSON enviado está bem formado.",
+      );
+    }
+  })();
 
   if (!schema) {
     return body;

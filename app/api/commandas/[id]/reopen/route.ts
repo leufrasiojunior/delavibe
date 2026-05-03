@@ -1,23 +1,23 @@
 import type { NextRequest } from "next/server";
 
-import { handleRoute, ok } from "@/lib/api/response";
-import { assertRateLimit } from "@/lib/auth/rate-limit";
-import { assertCsrfProtection, getSessionFromRequest } from "@/lib/auth/session";
+import { handleProtectedRoute } from "@/lib/api/route-security";
+import { ok } from "@/lib/api/response";
 import { commandaMutationResponseSchema } from "@/lib/schemas/commanda";
 import { reopenCommanda } from "@/lib/services/commanda-service";
-import { getRequestIp } from "@/lib/utils/http";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  return handleRoute(request, async (currentRequest, requestId) => {
-    const session = await getSessionFromRequest(currentRequest);
-    assertCsrfProtection(currentRequest, session);
-    assertRateLimit(`mutate:commandas:${session.user.id}`, 120, 60_000);
+  return handleProtectedRoute(request, {
+    auth: "required",
+    requireOrigin: true,
+    requireCsrf: true,
+    rateLimitPolicy: "write_authenticated",
+  }, async ({ requestId, session, ipAddress }) => {
     const { id } = await context.params;
-    const result = await reopenCommanda(id, session.user.id, getRequestIp(currentRequest));
+    const result = await reopenCommanda(id, session!.user.id, ipAddress);
     return ok(commandaMutationResponseSchema.parse(result), requestId);
   });
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { roleSchema } from "@/lib/schemas/shared";
+import { personNameFieldSchema, usernameFieldSchema } from "@/lib/schemas/string-fields";
 
 export const sessionUserSchema = z.object({
   id: z.string(),
@@ -10,14 +11,14 @@ export const sessionUserSchema = z.object({
 });
 
 export const loginInputSchema = z.object({
-  username: z.string().trim().min(3).max(40),
+  username: usernameFieldSchema,
   password: z.string().min(8).max(72),
 });
 
 export const initialAdminSetupInputSchema = z
   .object({
-    name: z.string().trim().min(3).max(80),
-    username: z.string().trim().min(3).max(80),
+    name: personNameFieldSchema("O nome", 80),
+    username: usernameFieldSchema,
     password: z.string().min(8).max(72),
     confirmPassword: z.string().min(8).max(72),
   })
@@ -36,3 +37,5 @@ export const loginResponseSchema = z.object({
 });
 
 export type SessionUserDto = z.infer<typeof sessionUserSchema>;
+export type LoginInput = z.infer<typeof loginInputSchema>;
+export type InitialAdminSetupInput = z.infer<typeof initialAdminSetupInputSchema>;

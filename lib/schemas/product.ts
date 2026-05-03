@@ -4,23 +4,25 @@ import {
   requiredIntegerField,
   requiredMoneyField,
 } from "@/lib/schemas/parsers";
-import { toCents } from "@/lib/utils/money";
 import {
-  normalizeBarcode,
-  normalizeOptionalCode,
-  normalizeOptionalText,
-  normalizeText,
-} from "@/lib/utils/strings";
-
-const optionalString = z.string().optional().nullable();
+  barcodeFieldSchema,
+  categoryFieldSchema,
+  imagePathFieldSchema,
+  normalizeSafeCode,
+  normalizeSafeName,
+  productNameFieldSchema,
+  skuFieldSchema,
+  unitFieldSchema,
+} from "@/lib/schemas/string-fields";
+import { toCents } from "@/lib/utils/money";
 
 const productFormSchema = z.object({
-  name: z.string().trim().min(1, "Informe o nome do produto.").max(120),
-  sku: optionalString,
-  barcode: z.string().trim().min(1, "Informe o código de barras.").max(80),
-  category: optionalString,
-  imagePath: optionalString,
-  unit: z.string().trim().min(1, "Informe a unidade de venda.").max(12).default("un"),
+  name: productNameFieldSchema,
+  sku: skuFieldSchema,
+  barcode: barcodeFieldSchema,
+  category: categoryFieldSchema,
+  imagePath: imagePathFieldSchema,
+  unit: unitFieldSchema.default("un"),
   price: requiredMoneyField({
     required: "Informe o preço de venda.",
     invalid: "Informe um valor monetário válido no preço de venda.",
@@ -79,12 +81,12 @@ export const productSchema = z.object({
 export const productListSchema = z.array(productSchema);
 
 export const createProductInputSchema = productFormSchema.transform((data) => ({
-  name: normalizeText(data.name),
-  sku: normalizeOptionalCode(data.sku),
-  barcode: normalizeBarcode(data.barcode),
-  category: normalizeOptionalText(data.category),
-  imagePath: normalizeOptionalText(data.imagePath),
-  unit: normalizeText(data.unit).toLowerCase(),
+  name: normalizeSafeName(data.name),
+  sku: normalizeSafeCode(data.sku) ?? null,
+  barcode: data.barcode,
+  category: data.category ?? null,
+  imagePath: data.imagePath ?? null,
+  unit: data.unit,
   priceCents: toCents(data.price),
   costCents: data.cost == null ? null : toCents(data.cost),
   stockQty: data.stockQty,
@@ -98,12 +100,12 @@ export const updateProductInputSchema = productFormSchema
   })
   .transform((data) => ({
     id: data.id,
-    name: normalizeText(data.name),
-    sku: normalizeOptionalCode(data.sku),
-    barcode: normalizeBarcode(data.barcode),
-    category: normalizeOptionalText(data.category),
-    imagePath: normalizeOptionalText(data.imagePath),
-    unit: normalizeText(data.unit).toLowerCase(),
+    name: normalizeSafeName(data.name),
+    sku: normalizeSafeCode(data.sku) ?? null,
+    barcode: data.barcode,
+    category: data.category ?? null,
+    imagePath: data.imagePath ?? null,
+    unit: data.unit,
     priceCents: toCents(data.price),
     costCents: data.cost == null ? null : toCents(data.cost),
     stockQty: data.stockQty,

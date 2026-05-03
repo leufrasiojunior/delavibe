@@ -35,8 +35,6 @@ function toProductDto(product: {
 
 function logProductStockWarning(product: {
   id: string;
-  name: string;
-  barcode: string;
   stockQty: number;
   minimumStock: number;
 }, actorUserId: string) {
@@ -44,8 +42,6 @@ function logProductStockWarning(product: {
     logger.warn("product_stock_negative", {
       userId: actorUserId,
       entityId: product.id,
-      productName: product.name,
-      barcode: product.barcode,
       stockQty: product.stockQty,
       minimumStock: product.minimumStock,
     });
@@ -56,8 +52,6 @@ function logProductStockWarning(product: {
     logger.warn("product_stock_low", {
       userId: actorUserId,
       entityId: product.id,
-      productName: product.name,
-      barcode: product.barcode,
       stockQty: product.stockQty,
       minimumStock: product.minimumStock,
     });
@@ -122,14 +116,12 @@ export async function createProduct(rawInput: unknown, actorUserId: string, ipAd
       entityType: "product",
       entityId: product.id,
       ipAddress,
-      metadata: { sku: product.sku },
+      metadata: { hasSku: product.sku != null },
     });
 
     logger.info("product_created", {
       userId: actorUserId,
       entityId: product.id,
-      sku: product.sku,
-      barcode: product.barcode,
       stockQty: product.stockQty,
       minimumStock: product.minimumStock,
     });
@@ -204,14 +196,12 @@ export async function updateProduct(rawInput: unknown, actorUserId: string, ipAd
       entityType: "product",
       entityId: product.id,
       ipAddress,
-      metadata: { sku: product.sku },
+      metadata: { hasSku: product.sku != null },
     });
 
     logger.info("product_updated", {
       userId: actorUserId,
       entityId: product.id,
-      sku: product.sku,
-      barcode: product.barcode,
       stockQty: product.stockQty,
       minimumStock: product.minimumStock,
     });

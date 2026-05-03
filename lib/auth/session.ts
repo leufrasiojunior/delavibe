@@ -10,10 +10,13 @@ import { db } from "@/lib/db";
 import type { Role } from "@/lib/schemas/shared";
 import { hasAdminAccount } from "@/lib/services/bootstrap-service";
 
-const sessionCookieName = process.env.SESSION_COOKIE_NAME || "pdv_session";
-const csrfCookieName = process.env.CSRF_COOKIE_NAME || "pdv_csrf";
 const sessionTtlHours = Number(process.env.SESSION_TTL_HOURS || "12");
 const sessionCookieSecure = process.env.SESSION_COOKIE_SECURE === "true";
+const sessionCookieSameSite: "lax" | "strict" = sessionCookieSecure ? "strict" : "lax";
+const sessionCookieName =
+  process.env.SESSION_COOKIE_NAME || (sessionCookieSecure ? "__Host-pdv_session" : "pdv_session");
+const csrfCookieName =
+  process.env.CSRF_COOKIE_NAME || (sessionCookieSecure ? "__Host-pdv_csrf" : "pdv_csrf");
 
 type SessionWithUser = Awaited<ReturnType<typeof findSessionByToken>>;
 
@@ -100,7 +103,7 @@ export function applySessionCookies(
     name: sessionCookieName,
     value: session.token,
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: sessionCookieSameSite,
     secure: sessionCookieSecure,
     expires: session.expiresAt,
     path: "/",
@@ -110,7 +113,7 @@ export function applySessionCookies(
     name: csrfCookieName,
     value: session.csrfToken,
     httpOnly: false,
-    sameSite: "lax",
+    sameSite: sessionCookieSameSite,
     secure: sessionCookieSecure,
     expires: session.expiresAt,
     path: "/",
@@ -122,7 +125,7 @@ export function clearSessionCookies(response: NextResponse) {
     name: sessionCookieName,
     value: "",
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: sessionCookieSameSite,
     secure: sessionCookieSecure,
     expires: new Date(0),
     path: "/",
@@ -132,7 +135,7 @@ export function clearSessionCookies(response: NextResponse) {
     name: csrfCookieName,
     value: "",
     httpOnly: false,
-    sameSite: "lax",
+    sameSite: sessionCookieSameSite,
     secure: sessionCookieSecure,
     expires: new Date(0),
     path: "/",
@@ -167,6 +170,18 @@ export async function getSessionFromRequest(request: NextRequest, allowedRoles?:
       null,
       "Entre novamente no sistema para restaurar a sessão.",
     );
+  }
+
+  assertRole(session.user.role, allowedRoles);
+  return buildSessionResponse(session);
+}
+
+export async function getOptionalSessionFromRequest(request: NextRequest, allowedRoles?: Role[]) {
+  const token = request.cookies.get(sessionCookieName)?.value;
+  const session = await findSessionByToken(token);
+
+  if (!session) {
+    return null;
   }
 
   assertRole(session.user.role, allowedRoles);
