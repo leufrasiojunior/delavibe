@@ -1,15 +1,20 @@
 import type { NextRequest } from "next/server";
 
-import { handleRoute, ok, parseJsonBody } from "@/lib/api/response";
+import { handleProtectedRoute } from "@/lib/api/route-security";
+import { ok, parseJsonBody } from "@/lib/api/response";
 import { applySessionCookies, createUserSession } from "@/lib/auth/session";
-import { loginResponseSchema } from "@/lib/schemas/auth";
+import { initialAdminSetupInputSchema, loginResponseSchema } from "@/lib/schemas/auth";
 import { createInitialAdmin } from "@/lib/services/bootstrap-service";
-import { getRequestIp } from "@/lib/utils/http";
 
 export async function POST(request: NextRequest) {
-  return handleRoute(request, async (currentRequest, requestId) => {
-    const payload = await parseJsonBody(currentRequest);
-    const user = await createInitialAdmin(payload, getRequestIp(currentRequest));
+  return handleProtectedRoute(request, {
+    auth: "none",
+    requireJsonBody: true,
+    requireOrigin: true,
+    rateLimitPolicy: "bootstrap_setup",
+  }, async ({ request: currentRequest, requestId, ipAddress }) => {
+    const payload = await parseJsonBody(currentRequest, initialAdminSetupInputSchema);
+    const user = await createInitialAdmin(payload, ipAddress);
     const session = await createUserSession(user);
     const response = ok(
       loginResponseSchema.parse({

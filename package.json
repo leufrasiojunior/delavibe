@@ -22,7 +22,7 @@
     "logs:seed": "docker compose logs seed --tail=200",
     "logs:app": "docker compose logs app --tail=200",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "RATE_LIMIT_DRIVER=memory node --import tsx --test tests/**/*.test.ts",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts"

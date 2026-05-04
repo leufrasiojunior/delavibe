@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requiredIntegerField } from "@/lib/schemas/parsers";
 import { stockMovementReasonSchema } from "@/lib/schemas/shared";
-import { normalizeOptionalText } from "@/lib/utils/strings";
+import { notesFieldSchema } from "@/lib/schemas/string-fields";
 
 export const stockMovementSchema = z.object({
   id: z.string(),
@@ -28,13 +28,13 @@ export const createStockMovementInputSchema = z
       required: "Informe a quantidade da movimentação.",
       invalid: "Informe uma quantidade válida para a movimentação.",
     }),
-    notes: z.string().optional().nullable(),
+    notes: notesFieldSchema,
   })
   .transform((data) => ({
     productId: data.productId,
     reason: data.reason,
     quantity: data.quantity,
-    notes: normalizeOptionalText(data.notes),
+    notes: data.notes ?? null,
   }))
   .superRefine((data, ctx) => {
     if (data.reason === "manual_entry" && data.quantity <= 0) {

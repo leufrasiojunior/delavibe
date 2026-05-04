@@ -4,9 +4,8 @@ import { Prisma, Role } from "@prisma/client";
 import { AppError } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { initialAdminSetupInputSchema } from "@/lib/schemas/auth";
+import type { InitialAdminSetupInput } from "@/lib/schemas/auth";
 import { logAuditEvent } from "@/lib/services/audit-service";
-import { normalizeText } from "@/lib/utils/strings";
 
 export async function hasAdminAccount() {
   const adminCount = await db.user.count({
@@ -16,10 +15,7 @@ export async function hasAdminAccount() {
   return adminCount > 0;
 }
 
-export async function createInitialAdmin(rawInput: unknown, ipAddress: string) {
-  const input = await initialAdminSetupInputSchema.parseAsync(rawInput);
-  const normalizedUsername = normalizeText(input.username).toLowerCase();
-  const normalizedName = normalizeText(input.name);
+export async function createInitialAdmin(input: InitialAdminSetupInput, ipAddress: string) {
   const passwordHash = await bcrypt.hash(input.password, 12);
 
   try {
@@ -41,8 +37,8 @@ export async function createInitialAdmin(rawInput: unknown, ipAddress: string) {
 
         return tx.user.create({
           data: {
-            name: normalizedName,
-            username: normalizedUsername,
+            name: input.name,
+            username: input.username,
             passwordHash,
             role: Role.admin,
             isActive: true,
@@ -54,7 +50,6 @@ export async function createInitialAdmin(rawInput: unknown, ipAddress: string) {
 
     logger.info("initial_admin_created", {
       userId: user.id,
-      username: user.username,
       ipAddress,
     });
 
@@ -64,7 +59,7 @@ export async function createInitialAdmin(rawInput: unknown, ipAddress: string) {
       entityType: "user",
       entityId: user.id,
       ipAddress,
-      metadata: { username: user.username },
+      metadata: { bootstrap: true },
     });
 
     return user;

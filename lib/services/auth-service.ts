@@ -1,16 +1,14 @@
 import bcrypt from "bcryptjs";
 
 import { AppError } from "@/lib/api/response";
-import { assertRateLimit, resetRateLimit } from "@/lib/auth/rate-limit";
 import { createUserSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { loginInputSchema } from "@/lib/schemas/auth";
+import type { LoginInput } from "@/lib/schemas/auth";
 import { logAuditEvent } from "@/lib/services/audit-service";
 import { hasAdminAccount } from "@/lib/services/bootstrap-service";
-import { normalizeText } from "@/lib/utils/strings";
 
-export async function loginUser(rawInput: unknown, ipAddress: string) {
+export async function loginUser(input: LoginInput, ipAddress: string) {
   if (!(await hasAdminAccount())) {
     throw new AppError(
       409,
@@ -21,14 +19,8 @@ export async function loginUser(rawInput: unknown, ipAddress: string) {
     );
   }
 
-  const input = await loginInputSchema.parseAsync(rawInput);
-  const normalizedUsername = normalizeText(input.username).toLowerCase();
-  const rateKey = `login:${normalizedUsername}:${ipAddress}`;
-
-  assertRateLimit(rateKey, 5, 15 * 60 * 1000);
-
   const user = await db.user.findUnique({
-    where: { username: normalizedUsername },
+    where: { username: input.username },
   });
 
   const isValid =
@@ -38,7 +30,6 @@ export async function loginUser(rawInput: unknown, ipAddress: string) {
     logger.warn("login_failed", {
       userId: user?.id ?? null,
       ipAddress,
-      username: normalizedUsername,
     });
 
     await logAuditEvent({
@@ -46,7 +37,7 @@ export async function loginUser(rawInput: unknown, ipAddress: string) {
       entityType: "user",
       entityId: user?.id,
       ipAddress,
-      metadata: { username: normalizedUsername },
+      metadata: { reason: "invalid_credentials" },
     });
 
     throw new AppError(
@@ -58,13 +49,10 @@ export async function loginUser(rawInput: unknown, ipAddress: string) {
     );
   }
 
-  resetRateLimit(rateKey);
-
   const session = await createUserSession(user);
 
   logger.info("login_success", {
     userId: user.id,
-    username: user.username,
     role: user.role,
     ipAddress,
   });
