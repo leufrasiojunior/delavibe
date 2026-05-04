@@ -3,6 +3,7 @@ import test from "node:test";
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { GET as healthzGet } from "@/app/healthz/route";
 import { handleProtectedRoute } from "@/lib/api/route-security";
 import { parseJsonBody } from "@/lib/api/response";
 import { assertRateLimit, buildRateLimitKey, getRateLimitState, resetRateLimit } from "@/lib/auth/rate-limit";
@@ -18,6 +19,7 @@ import { createProductInputSchema } from "@/lib/schemas/product";
 import { createStockMovementInputSchema } from "@/lib/schemas/stock";
 import { filterCommandasByStatusAndCustomerName } from "@/lib/utils/commandas";
 import { buildCommandaItemAddition, buildCommandaItemQuantityUpdate } from "@/lib/utils/commanda-items";
+import { buildProductsCsv } from "@/lib/utils/product-export";
 import { calculateCommandaTotals } from "@/lib/utils/totals";
 
 test("normaliza cadastro de produto e converte preço para centavos", async () => {
@@ -179,6 +181,60 @@ test("rejeita fechamento com linha de pagamento preenchida sem valor", async () 
       }),
     /valor da forma de pagamento preenchida/i,
   );
+});
+
+test("healthz responde 200 publico sem cache", async () => {
+  const response = await healthzGet();
+
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "ok");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("content-type"), "text/plain; charset=utf-8");
+});
+
+test("gera csv de produtos com estoque e escaping", () => {
+  const csv = buildProductsCsv([
+    {
+      id: "product-1",
+      name: 'Combo "Especial"; Verao',
+      sku: null,
+      barcode: "001234567890",
+      category: "Bebidas\nGeladas",
+      imagePath: null,
+      unit: "un",
+      priceCents: 1590,
+      costCents: 980,
+      stockQty: 12,
+      minimumStock: 3,
+      isActive: true,
+      createdAt: "2026-05-03T00:00:00.000Z",
+      updatedAt: "2026-05-03T00:00:00.000Z",
+    },
+    {
+      id: "product-2",
+      name: "Produto inativo",
+      sku: "SKU-2",
+      barcode: "7890000000002",
+      category: null,
+      imagePath: null,
+      unit: "cx",
+      priceCents: 4500,
+      costCents: null,
+      stockQty: 0,
+      minimumStock: 0,
+      isActive: false,
+      createdAt: "2026-05-03T00:00:00.000Z",
+      updatedAt: "2026-05-03T00:00:00.000Z",
+    },
+  ]);
+
+  assert.ok(csv.startsWith("\uFEFF"));
+  assert.match(csv, /"Nome";"SKU";"Codigo de barras";"Categoria";"Unidade";"Preco de venda";"Custo";"Estoque atual";"Estoque minimo";"Status"/);
+  assert.match(
+    csv,
+    /"Combo ""Especial""; Verao";"";"001234567890";"Bebidas\nGeladas";"un";"R\$\s*15,90";"R\$\s*9,80";"12";"3";"Ativo"/,
+  );
+  assert.match(csv, /"Produto inativo";"SKU-2";"7890000000002";"";"cx";"R\$\s*45,00";"";"0";"0";"Inativo"/);
 });
 
 test("limita tentativas de login por rota, IP e usuário", async () => {

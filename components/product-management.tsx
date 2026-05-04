@@ -305,6 +305,9 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
             <p className="eyebrow">Produtos cadastrados</p>
             <h2>{products.length} itens disponíveis</h2>
           </div>
+          <a className="button button-secondary" href="/api/products/export">
+            Exportar CSV
+          </a>
         </div>
 
         <div className="table-wrapper">
