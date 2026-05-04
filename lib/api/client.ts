@@ -20,10 +20,17 @@ function getCsrfToken() {
   }
 
   const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+  const cookieNames = [
+    process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME,
+    "__Host-pdv_csrf",
+    "pdv_csrf",
+  ].filter((value): value is string => Boolean(value));
 
-  for (const cookie of cookies) {
-    if (cookie.startsWith(`${process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME || "pdv_csrf"}=`)) {
-      return decodeURIComponent(cookie.split("=")[1] || "");
+  for (const cookieName of cookieNames) {
+    for (const cookie of cookies) {
+      if (cookie.startsWith(`${cookieName}=`)) {
+        return decodeURIComponent(cookie.split("=")[1] || "");
+      }
     }
   }
 
