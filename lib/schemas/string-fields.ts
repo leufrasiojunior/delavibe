@@ -3,10 +3,13 @@ import { z } from "zod";
 import {
   hasControlCharacters,
   normalizeBarcode,
+  normalizeCep,
   normalizeCode,
+  normalizeEmail,
   normalizeOptionalCode,
   normalizeOptionalText,
   normalizePath,
+  normalizePhone,
   normalizeText,
 } from "@/lib/utils/strings";
 
@@ -260,3 +263,119 @@ export function normalizeSafeCode(value?: string | null) {
 export function normalizeSafeName(value: string) {
   return normalizeText(value);
 }
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ufList = new Set([
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+]);
+const passwordHasLetter = /[A-Za-z]/;
+const passwordHasNumber = /\d/;
+
+export const emailFieldSchema = z
+  .string()
+  .trim()
+  .min(3, "Informe um e-mail válido.")
+  .max(120, "O e-mail deve ter no máximo 120 caracteres.")
+  .superRefine((value, ctx) => {
+    if (hasControlCharacters(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O e-mail contém caracteres inválidos.",
+      });
+      return;
+    }
+
+    const normalized = normalizeEmail(value);
+
+    if (!emailPattern.test(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informe um e-mail válido.",
+      });
+    }
+  })
+  .transform((value) => normalizeEmail(value));
+
+export const phoneFieldSchema = z
+  .string()
+  .max(40, "O telefone deve ter no máximo 40 caracteres.")
+  .superRefine((value, ctx) => {
+    const digits = normalizePhone(value);
+
+    if (digits.length < 10 || digits.length > 11) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O telefone deve ter 10 ou 11 dígitos (DDD + número).",
+      });
+    }
+  })
+  .transform((value) => normalizePhone(value));
+
+export const cepFieldSchema = z
+  .string()
+  .max(12, "O CEP deve ter no máximo 12 caracteres.")
+  .superRefine((value, ctx) => {
+    const digits = normalizeCep(value);
+
+    if (digits.length !== 8) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O CEP deve ter 8 dígitos.",
+      });
+    }
+  })
+  .transform((value) => normalizeCep(value));
+
+export const ufFieldSchema = z
+  .string()
+  .trim()
+  .length(2, "Informe a UF com 2 letras.")
+  .superRefine((value, ctx) => {
+    const upper = value.toUpperCase();
+
+    if (!ufList.has(upper)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "UF inválida.",
+      });
+    }
+  })
+  .transform((value) => value.toUpperCase());
+
+export function addressLineFieldSchema(fieldLabel: string, max = 120) {
+  return safeTextSchema(fieldLabel, 1, max);
+}
+
+export function optionalAddressLineFieldSchema(fieldLabel: string, max = 120) {
+  return optionalSafeTextSchema(fieldLabel, max);
+}
+
+export const passwordFieldSchema = z
+  .string()
+  .min(8, "A senha deve ter pelo menos 8 caracteres.")
+  .max(72, "A senha deve ter no máximo 72 caracteres.")
+  .superRefine((value, ctx) => {
+    if (hasControlCharacters(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A senha contém caracteres inválidos.",
+      });
+      return;
+    }
+
+    if (!passwordHasLetter.test(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A senha deve conter pelo menos uma letra.",
+      });
+    }
+
+    if (!passwordHasNumber.test(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A senha deve conter pelo menos um número.",
+      });
+    }
+  });

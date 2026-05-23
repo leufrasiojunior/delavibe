@@ -11,6 +11,12 @@ import {
   getSessionFromRequest,
   type AuthSession,
 } from "@/lib/auth/session";
+import {
+  assertCustomerCsrfProtection,
+  getCustomerSessionFromRequest,
+  getOptionalCustomerSessionFromRequest,
+  type CustomerAuthSession,
+} from "@/lib/auth/customer-session";
 import type { Role } from "@/lib/schemas/shared";
 import { getExpectedOrigin, getRequestIp, normalizeOrigin } from "@/lib/utils/http";
 
@@ -19,10 +25,12 @@ type RouteAuthMode = "none" | "optional" | "required";
 type ProtectedRouteOptions = {
   auth?: RouteAuthMode;
   roles?: Role[];
+  customerAuth?: RouteAuthMode;
   rateLimitPolicy?: RateLimitPolicyName;
   requireJsonBody?: boolean;
   requireOrigin?: boolean;
   requireCsrf?: boolean;
+  requireCustomerCsrf?: boolean;
   rateLimitIdentifier?: string | null;
 };
 
@@ -31,6 +39,7 @@ type ProtectedRouteContext = {
   requestId: string;
   ipAddress: string;
   session: AuthSession | null;
+  customerSession: CustomerAuthSession | null;
   rateLimit: Awaited<ReturnType<typeof assertRateLimit>> | null;
 };
 
@@ -88,6 +97,18 @@ async function resolveSession(request: NextRequest, auth: RouteAuthMode, roles?:
   return getSessionFromRequest(request, roles);
 }
 
+async function resolveCustomerSession(request: NextRequest, mode: RouteAuthMode) {
+  if (mode === "none") {
+    return null;
+  }
+
+  if (mode === "optional") {
+    return getOptionalCustomerSessionFromRequest(request);
+  }
+
+  return getCustomerSessionFromRequest(request);
+}
+
 export function applyRateLimitHeaders(
   response: NextResponse,
   rateLimitState: NonNullable<ProtectedRouteContext["rateLimit"]>,
@@ -118,6 +139,7 @@ async function guardRoute(
   }
 
   const session = await resolveSession(request, auth, options.roles);
+  const customerSession = await resolveCustomerSession(request, options.customerAuth ?? "none");
 
   if (options.requireCsrf) {
     if (!session) {
@@ -133,6 +155,10 @@ async function guardRoute(
     assertCsrfProtection(request, session);
   }
 
+  if (options.requireCustomerCsrf && customerSession) {
+    assertCustomerCsrfProtection(request, customerSession);
+  }
+
   const rateLimit = options.rateLimitPolicy
     ? await assertRateLimit(options.rateLimitPolicy, request, session, {
         identifier: options.rateLimitIdentifier,
@@ -143,6 +169,7 @@ async function guardRoute(
     request,
     ipAddress: getRequestIp(request),
     session,
+    customerSession,
     rateLimit,
   };
 }
