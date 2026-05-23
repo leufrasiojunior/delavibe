@@ -236,6 +236,34 @@ Fluxo esperado em produção:
 - a primeira conta criada recebe perfil `admin`
 - depois disso, `/setup` passa a redirecionar para `login` ou para a área autenticada
 
+## Imagens de produto
+
+O sistema armazena imagens de produto localmente no servidor, em um diretório configurado pela variável de ambiente `UPLOADS_DIR` (default `/app/uploads`). Cada produto pode ter uma única imagem, salva como `${UPLOADS_DIR}/products/{productId}.{jpg|png|webp}`. Quando o produto não tem imagem cadastrada, a UI exibe um placeholder estático.
+
+Tipos aceitos: JPG, PNG e WebP. Tamanho máximo: 2 MB. A validação é feita em duas camadas (Content-Type declarado pelo cliente + verificação de magic bytes do arquivo).
+
+### Volume persistente em Docker
+
+Os arquivos compose declaram um volume nomeado `uploads_data` montado em `/app/uploads` no serviço `app`. Sem volume persistente, todas as imagens são perdidas a cada redeploy.
+
+- `docker-compose.yml` (dev): volume `uploads_data` já configurado.
+- `docker-compose.coolify.yml` (prod): volume `uploads_data` já configurado.
+
+### Configuração no Coolify
+
+- Garanta que o volume `uploads_data` esteja marcado como **persistente** no painel do Coolify (Service > Storages).
+- Considere agendar **backup periódico** do volume (Coolify suporta backup de volumes via Resources > Backups).
+- O dimensionamento mínimo depende do catálogo; uma imagem JPG/WebP típica fica entre 100 KB e 1 MB, então 1 GB de volume cobre milhares de produtos.
+
+### Desenvolvimento local sem Docker
+
+Ao rodar `npm run dev` sem Docker, garanta que o diretório apontado por `UPLOADS_DIR` exista e seja escrevível pelo usuário do processo Node. Exemplo:
+
+```bash
+mkdir -p ./uploads/products
+UPLOADS_DIR="$(pwd)/uploads" npm run dev
+```
+
 ## Seed
 
 O seed atual é seguro para produção no sentido de não criar credenciais.
