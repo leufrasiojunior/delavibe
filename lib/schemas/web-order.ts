@@ -1,11 +1,17 @@
-import { WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
+import { DeliveryMode, WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
 import { z } from "zod";
 
 import { customerAddressInputSchema } from "@/lib/schemas/customer-address";
-import { notesFieldSchema, searchQueryFieldSchema } from "@/lib/schemas/string-fields";
+import { guestCustomerInputSchema } from "@/lib/schemas/customer";
+import {
+  notesFieldSchema,
+  passwordFieldSchema,
+  searchQueryFieldSchema,
+} from "@/lib/schemas/string-fields";
 
 const webOrderStatusSchema = z.nativeEnum(WebOrderStatus);
 const webOrderStatusActorTypeSchema = z.nativeEnum(WebOrderStatusActorType);
+const deliveryModeSchema = z.nativeEnum(DeliveryMode);
 
 const webOrderItemInputSchema = z.object({
   productId: z.string().cuid("Produto inválido."),
@@ -15,14 +21,76 @@ const webOrderItemInputSchema = z.object({
     .min(1, "A quantidade mínima é 1."),
 });
 
-export const webOrderCreateInputSchema = z.object({
-  items: z
-    .array(webOrderItemInputSchema)
-    .min(1, "Adicione pelo menos um item ao pedido."),
-  addressId: z.string().cuid().optional(),
-  address: customerAddressInputSchema.partial().optional(),
-  notes: notesFieldSchema,
-});
+export const webOrderCreateInputSchema = z
+  .object({
+    items: z
+      .array(webOrderItemInputSchema)
+      .min(1, "Adicione pelo menos um item ao pedido."),
+    deliveryMode: deliveryModeSchema,
+    addressId: z.string().cuid().optional(),
+    address: customerAddressInputSchema.partial().optional(),
+    notes: notesFieldSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.deliveryMode === DeliveryMode.DELIVERY) {
+      if (!data.addressId && !data.address) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["deliveryMode"],
+          message: "Para entrega, informe um endereço.",
+        });
+      }
+    }
+  });
+
+export const webOrderPublicCreateInputSchema = z
+  .object({
+    items: z
+      .array(webOrderItemInputSchema)
+      .min(1, "Adicione pelo menos um item ao pedido."),
+    deliveryMode: deliveryModeSchema,
+    addressSnapshot: customerAddressInputSchema.partial().optional(),
+    notes: notesFieldSchema,
+    guestCustomer: guestCustomerInputSchema.optional(),
+    createAccount: z.boolean().optional().default(false),
+    password: passwordFieldSchema.optional(),
+    confirmPassword: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.deliveryMode === DeliveryMode.DELIVERY) {
+      if (!data.addressSnapshot) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["deliveryMode"],
+          message: "Para entrega, informe um endereço.",
+        });
+      }
+    }
+
+    if (data.createAccount) {
+      if (!data.password) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["password"],
+          message: "Informe uma senha para criar a conta.",
+        });
+      } else if (data.password !== data.confirmPassword) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["confirmPassword"],
+          message: "A confirmação de senha não confere.",
+        });
+      }
+
+      if (!data.guestCustomer) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["createAccount"],
+          message: "Faltam dados do cliente para criar a conta.",
+        });
+      }
+    }
+  });
 
 export const webOrderStatusTransitionSchema = z
   .object({

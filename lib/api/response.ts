@@ -170,6 +170,11 @@ export async function parseJsonBody<T>(
 ): Promise<T>;
 export async function parseJsonBody<T>(
   request: NextRequest,
+  schema: { parseAsync(data: unknown): Promise<T> },
+  options: { maxBytes?: number },
+): Promise<T>;
+export async function parseJsonBody<T>(
+  request: NextRequest,
   schema?: { parseAsync(data: unknown): Promise<T> },
   options?: { maxBytes?: number },
 ) {

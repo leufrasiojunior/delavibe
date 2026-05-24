@@ -1,4 +1,5 @@
 import {
+  DeliveryMode,
   Prisma,
   WebOrderStatus,
   WebOrderStatusActorType,
@@ -236,6 +237,7 @@ export async function createWebOrder(
       data: {
         customerId,
         status: WebOrderStatus.PENDING_PAYMENT,
+        deliveryMode: input.deliveryMode,
         totalCents,
         notes: input.notes ?? null,
         addressId: resolvedAddressId,

@@ -19,6 +19,7 @@ function toCustomerPublicDto(customer: Customer): CustomerPublicDto {
     name: customer.name,
     email: customer.email,
     phone: customer.phone,
+    isGuest: customer.isGuest,
     consentDataProcessingAt: customer.consentDataProcessingAt.toISOString(),
     consentMarketingAt: customer.consentMarketingAt?.toISOString() ?? null,
     consentPolicyVersion: customer.consentPolicyVersion,
@@ -48,6 +49,36 @@ export async function createCustomer(input: CreateCustomerInput, ipAddress: stri
   const passwordHash = await bcrypt.hash(input.password, PASSWORD_BCRYPT_COST);
   const now = new Date();
 
+  // Se email ja existe como guest, faz upgrade para account.
+  const existing = await db.customer.findUnique({ where: { email: input.email } });
+
+  if (existing && existing.deletedAt === null && existing.isGuest) {
+    const upgraded = await db.customer.update({
+      where: { id: existing.id },
+      data: {
+        name: input.name,
+        phone: input.phone,
+        passwordHash,
+        isGuest: false,
+        consentDataProcessingAt: now,
+        consentMarketingAt: input.consentMarketing ? now : null,
+        consentPolicyVersion: input.policyVersion,
+        consentIpAddress: ipAddress,
+      },
+    });
+
+    await logAuditEvent({
+      action: "customer.guest.upgrade",
+      entityType: "customer",
+      entityId: upgraded.id,
+      ipAddress,
+      metadata: { policyVersion: input.policyVersion },
+    });
+
+    logger.info("customer_guest_upgraded", { customerId: upgraded.id });
+    return toCustomerDto(upgraded);
+  }
+
   try {
     const customer = await db.customer.create({
       data: {
@@ -55,6 +86,7 @@ export async function createCustomer(input: CreateCustomerInput, ipAddress: stri
         email: input.email,
         phone: input.phone,
         passwordHash,
+        isGuest: false,
         consentDataProcessingAt: now,
         consentMarketingAt: input.consentMarketing ? now : null,
         consentPolicyVersion: input.policyVersion,
@@ -91,6 +123,83 @@ export async function createCustomer(input: CreateCustomerInput, ipAddress: stri
   }
 }
 
+type CreateGuestCustomerInput = {
+  name: string;
+  email: string;
+  phone: string;
+  consentDataProcessing: true;
+  consentMarketing?: boolean;
+  policyVersion: string;
+};
+
+export async function createGuestCustomer(
+  input: CreateGuestCustomerInput,
+  ipAddress: string,
+): Promise<Customer> {
+  const now = new Date();
+  const existing = await db.customer.findUnique({ where: { email: input.email } });
+
+  if (existing && existing.deletedAt === null) {
+    if (!existing.isGuest) {
+      throw new AppError(
+        409,
+        "customer_email_in_use",
+        "Este e-mail já está cadastrado.",
+        null,
+        "Faça login para usar esta conta.",
+      );
+    }
+
+    // Reaproveita o customer guest existente, atualizando nome/telefone se diferentes.
+    const updated = await db.customer.update({
+      where: { id: existing.id },
+      data: {
+        name: input.name,
+        phone: input.phone,
+        consentDataProcessingAt: now,
+        consentMarketingAt: input.consentMarketing ? now : null,
+        consentPolicyVersion: input.policyVersion,
+        consentIpAddress: ipAddress,
+      },
+    });
+
+    await logAuditEvent({
+      action: "customer.guest.reuse",
+      entityType: "customer",
+      entityId: updated.id,
+      ipAddress,
+      metadata: { policyVersion: input.policyVersion },
+    });
+
+    return updated;
+  }
+
+  const created = await db.customer.create({
+    data: {
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      passwordHash: null,
+      isGuest: true,
+      consentDataProcessingAt: now,
+      consentMarketingAt: input.consentMarketing ? now : null,
+      consentPolicyVersion: input.policyVersion,
+      consentIpAddress: ipAddress,
+    },
+  });
+
+  await logAuditEvent({
+    action: "customer.guest.create",
+    entityType: "customer",
+    entityId: created.id,
+    ipAddress,
+    metadata: { policyVersion: input.policyVersion },
+  });
+
+  logger.info("customer_guest_created", { customerId: created.id });
+  return created;
+}
+
 export async function authenticateCustomer(
   email: string,
   password: string,
@@ -98,7 +207,7 @@ export async function authenticateCustomer(
 ): Promise<Customer> {
   const customer = await db.customer.findUnique({ where: { email } });
   const isValid =
-    customer && customer.deletedAt === null
+    customer && customer.deletedAt === null && customer.passwordHash
       ? await bcrypt.compare(password, customer.passwordHash)
       : false;
 
