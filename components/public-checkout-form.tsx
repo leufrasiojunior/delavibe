@@ -76,7 +76,6 @@ export function PublicCheckoutForm({
   const [error, setError] = useState<string | null>(null);
   const [isLookingUpCep, setIsLookingUpCep] = useState(false);
   const [cepLookupError, setCepLookupError] = useState<string | null>(null);
-  const [cepAutoFilled, setCepAutoFilled] = useState(false);
 
   useEffect(() => {
     if (isHydrated && items.length === 0) {
@@ -91,7 +90,6 @@ export function PublicCheckoutForm({
     const digits = normalizeCepDigits(addressDraft.zip);
     if (digits.length !== 8) {
       setCepLookupError(null);
-      setCepAutoFilled(false);
       return;
     }
 
@@ -109,7 +107,6 @@ export function PublicCheckoutForm({
           state: result.state,
           complement: current.complement || result.complement,
         }));
-        setCepAutoFilled(true);
       })
       .catch((caught: unknown) => {
         if ((caught as { name?: string } | null)?.name === "AbortError") return;
@@ -118,7 +115,6 @@ export function PublicCheckoutForm({
             ? caught.message
             : "Falha ao buscar CEP.";
         setCepLookupError(message);
-        setCepAutoFilled(false);
       })
       .finally(() => setIsLookingUpCep(false));
 
@@ -355,10 +351,6 @@ export function PublicCheckoutForm({
                   />
                   {cepLookupError ? (
                     <small className="form-error compact">{cepLookupError}</small>
-                  ) : cepAutoFilled ? (
-                    <small className="muted">
-                      Endereço preenchido automaticamente. Você pode editar rua, bairro, número e complemento.
-                    </small>
                   ) : null}
                 </label>
 
