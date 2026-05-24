@@ -15,7 +15,7 @@ export async function loginUser(input: LoginInput, ipAddress: string) {
       "initial_admin_required",
       "O sistema ainda não possui administrador configurado.",
       null,
-      "Acesse /setup para criar o primeiro administrador antes de fazer login.",
+      "Acesse /admin/setup para criar o primeiro administrador antes de fazer login.",
     );
   }
 

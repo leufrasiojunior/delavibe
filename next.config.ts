@@ -5,7 +5,9 @@ const isProduction = process.env.NODE_ENV === "production";
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  isProduction ? "connect-src 'self'" : "connect-src 'self' ws: http: https:",
+  isProduction
+    ? "connect-src 'self' https://viacep.com.br"
+    : "connect-src 'self' ws: http: https:",
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",

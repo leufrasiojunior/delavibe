@@ -305,6 +305,16 @@ button {
   color: var(--text);
 }
 
+.field input[readonly] {
+  background: rgba(244, 182, 79, 0.08);
+  cursor: not-allowed;
+  color: var(--magenta-deep);
+}
+
+.field small {
+  font-size: 0.82rem;
+}
+
 .checkbox-field {
   display: inline-flex;
   align-items: center;
@@ -1558,6 +1568,47 @@ button {
 .public-category h2 {
   margin: 0 0 0.85rem;
   font-size: 1.4rem;
+}
+
+.public-category-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  padding: 0.25rem 0.1rem 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.public-category-chips::-webkit-scrollbar {
+  height: 4px;
+}
+
+.public-category-chips::-webkit-scrollbar-thumb {
+  background: rgba(201, 47, 136, 0.25);
+  border-radius: 999px;
+}
+
+.public-category-chips .chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--magenta-deep);
+  font-weight: 600;
+  transition: transform 100ms ease, background 100ms ease;
+}
+
+.public-category-chips .chip:hover {
+  transform: translateY(-1px);
+}
+
+.public-category-chips .chip.active {
+  background: linear-gradient(135deg, var(--magenta) 0%, var(--coral) 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 6px 14px rgba(201, 47, 136, 0.28);
 }
 
 .public-product-grid {

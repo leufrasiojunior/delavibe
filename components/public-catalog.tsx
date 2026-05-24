@@ -8,6 +8,8 @@ import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
 
 const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
+const ALL_CATEGORIES = "__all__";
+const UNCATEGORIZED_KEY = "Outros";
 
 function buildImageUrl(product: PublicProductDto) {
   if (!product.imagePath) {
@@ -27,27 +29,45 @@ function stockBadge(product: PublicProductDto) {
   return null;
 }
 
+function categoryKey(product: PublicProductDto) {
+  return product.category?.trim() || UNCATEGORIZED_KEY;
+}
+
 type PublicCatalogProps = {
   initialProducts: PublicProductDto[];
 };
 
 export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORIES);
   const { addItem } = useCart();
   const [feedbackProductId, setFeedbackProductId] = useState<string | null>(null);
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const product of initialProducts) {
+      set.add(categoryKey(product));
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [initialProducts]);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return initialProducts;
-    return initialProducts.filter((product) =>
-      product.name.toLowerCase().includes(term),
-    );
-  }, [initialProducts, search]);
+    return initialProducts.filter((product) => {
+      if (activeCategory !== ALL_CATEGORIES && categoryKey(product) !== activeCategory) {
+        return false;
+      }
+      if (term && !product.name.toLowerCase().includes(term)) {
+        return false;
+      }
+      return true;
+    });
+  }, [initialProducts, search, activeCategory]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, PublicProductDto[]>();
     for (const product of filtered) {
-      const key = product.category?.trim() || "Outros";
+      const key = categoryKey(product);
       const list = map.get(key) ?? [];
       list.push(product);
       map.set(key, list);
@@ -81,6 +101,28 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
           onChange={(event) => setSearch(event.target.value)}
         />
       </section>
+
+      {categories.length > 1 ? (
+        <nav className="public-category-chips" aria-label="Filtrar por categoria">
+          <button
+            type="button"
+            className={activeCategory === ALL_CATEGORIES ? "chip active" : "chip"}
+            onClick={() => setActiveCategory(ALL_CATEGORIES)}
+          >
+            Todas
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              className={activeCategory === category ? "chip active" : "chip"}
+              onClick={() => setActiveCategory(category)}
+            >
+              {category}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       {grouped.length === 0 ? (
         <section className="public-empty">

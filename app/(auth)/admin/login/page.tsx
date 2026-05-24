@@ -1,16 +1,20 @@
 import { redirect } from "next/navigation";
 
-import { InitialAdminForm } from "@/components/initial-admin-form";
+import { LoginForm } from "@/components/login-form";
 import { getOptionalServerSession } from "@/lib/auth/session";
 import { hasAdminAccount } from "@/lib/services/bootstrap-service";
 
 export const dynamic = "force-dynamic";
 
-export default async function SetupPage() {
+export default async function LoginPage() {
   const [session, adminExists] = await Promise.all([getOptionalServerSession(), hasAdminAccount()]);
 
-  if (adminExists) {
-    redirect(session ? "/commandas" : "/login");
+  if (session) {
+    redirect("/admin/commandas");
+  }
+
+  if (!adminExists) {
+    redirect("/admin/setup");
   }
 
   return (
@@ -18,16 +22,15 @@ export default async function SetupPage() {
       <section className="login-hero">
         <div className="hero-rings" />
         <div className="hero-copy">
-          <p className="eyebrow">Primeiro acesso</p>
-          <h2>Configure o administrador antes de liberar o PDV para operação.</h2>
+          <p className="eyebrow">Neon retrô, operação objetiva</p>
+          <h2>Um PDV que fecha venda sem perder o controle do estoque.</h2>
           <p>
-            O seed não cria mais credenciais padrão. Defina agora a conta administrativa que ficará responsável pelo
-            primeiro acesso ao sistema.
+            Cada item baixado gera histórico, cada fechamento vira dado de venda e cada ajuste fica auditado.
           </p>
         </div>
       </section>
 
-      <InitialAdminForm />
+      <LoginForm />
     </main>
   );
 }

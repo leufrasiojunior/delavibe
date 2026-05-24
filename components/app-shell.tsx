@@ -13,12 +13,13 @@ type AppShellProps = {
 };
 
 const navigation = [
-  { href: "/commandas", label: "Comandas" },
-  { href: "/pedidos-web", label: "Pedidos web" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "Produtos" },
-  { href: "/stock", label: "Estoque" },
-  { href: "/sales", label: "Vendas" },
+  { href: "/admin/commandas", label: "Comandas" },
+  { href: "/admin/pedidos-web", label: "Pedidos web" },
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/products", label: "Produtos" },
+  { href: "/admin/stock", label: "Estoque" },
+  { href: "/admin/sales", label: "Vendas" },
+  { href: "/", label: "Ver cardápio público" },
 ];
 
 export function AppShell({ session, children }: AppShellProps) {
