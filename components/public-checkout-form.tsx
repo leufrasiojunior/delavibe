@@ -1,0 +1,464 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+
+import { DeliveryMode } from "@prisma/client";
+
+import { apiFetch } from "@/lib/api/client";
+import { useCart } from "@/lib/hooks/use-cart";
+import { type CustomerAddressDto } from "@/lib/schemas/customer-address";
+import { type PublicProductDto } from "@/lib/schemas/product";
+import { webOrderSchema } from "@/lib/schemas/web-order";
+import { formatCurrency } from "@/lib/utils/money";
+
+const POLICY_VERSION = "1.0-2026-05";
+
+type CheckoutCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+};
+
+type PublicCheckoutFormProps = {
+  customer: CheckoutCustomer | null;
+  addresses: CustomerAddressDto[];
+  productsLookup: Record<string, PublicProductDto>;
+};
+
+type AddressDraft = {
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zip: string;
+  reference: string;
+};
+
+const emptyAddress: AddressDraft = {
+  street: "",
+  number: "",
+  complement: "",
+  neighborhood: "",
+  city: "",
+  state: "",
+  zip: "",
+  reference: "",
+};
+
+export function PublicCheckoutForm({
+  customer,
+  addresses,
+  productsLookup,
+}: PublicCheckoutFormProps) {
+  const router = useRouter();
+  const { items, isHydrated, clear, removeItem } = useCart();
+  const [isPending, startTransition] = useTransition();
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(DeliveryMode.PICKUP);
+  const [name, setName] = useState(customer?.name ?? "");
+  const [email, setEmail] = useState(customer?.email ?? "");
+  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [notes, setNotes] = useState("");
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id ?? null,
+  );
+  const [addressDraft, setAddressDraft] = useState<AddressDraft>(emptyAddress);
+  const [createAccount, setCreateAccount] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [consentData, setConsentData] = useState(false);
+  const [consentMarketing, setConsentMarketing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isHydrated && items.length === 0) {
+      router.replace("/carrinho");
+    }
+  }, [isHydrated, items.length, router]);
+
+  const total = useMemo(
+    () =>
+      items.reduce((sum, item) => {
+        const product = productsLookup[item.productId];
+        return sum + (product?.priceCents ?? 0) * item.quantity;
+      }, 0),
+    [items, productsLookup],
+  );
+
+  function buildAddressSnapshot(): AddressDraft | null {
+    if (deliveryMode === DeliveryMode.PICKUP) return null;
+    if (selectedAddressId && customer) {
+      const found = addresses.find((address) => address.id === selectedAddressId);
+      if (found) {
+        return {
+          street: found.street,
+          number: found.number,
+          complement: found.complement ?? "",
+          neighborhood: found.neighborhood,
+          city: found.city,
+          state: found.state,
+          zip: found.zip,
+          reference: found.reference ?? "",
+        };
+      }
+    }
+    return addressDraft;
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!consentData) {
+      setError("É necessário aceitar a Política de Privacidade.");
+      return;
+    }
+
+    const snapshot = buildAddressSnapshot();
+
+    const payload: Record<string, unknown> = {
+      items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      deliveryMode,
+      notes: notes.trim() || null,
+    };
+
+    if (snapshot) {
+      payload.addressSnapshot = snapshot;
+    }
+
+    if (!customer) {
+      payload.guestCustomer = {
+        name,
+        email,
+        phone,
+        consentDataProcessing: true,
+        consentMarketing,
+        policyVersion: POLICY_VERSION,
+      };
+
+      if (createAccount) {
+        payload.createAccount = true;
+        payload.password = password;
+        payload.confirmPassword = confirmPassword;
+      }
+    }
+
+    startTransition(() => {
+      void apiFetch(
+        "/api/web-orders",
+        { method: "POST", body: JSON.stringify(payload) },
+        webOrderSchema,
+      )
+        .then((order) => {
+          clear();
+          router.push(`/pedido/${order.id}/confirmacao`);
+        })
+        .catch((caught: unknown) => {
+          const message = caught instanceof Error ? caught.message : "Falha ao finalizar pedido.";
+          setError(message);
+
+          // Remove items inválidos do carrinho se backend indicou
+          const detailMatch = /productIds?: ?\[?([^\]]+)\]?/.exec(message);
+          if (detailMatch) {
+            const ids = detailMatch[1].split(",").map((value) => value.trim().replace(/['"]/g, ""));
+            for (const id of ids) {
+              if (id) removeItem(id);
+            }
+          }
+        });
+    });
+  }
+
+  if (!isHydrated || items.length === 0) {
+    return (
+      <section className="public-empty">
+        <p className="muted">Carregando seu pedido...</p>
+      </section>
+    );
+  }
+
+  return (
+    <form className="public-checkout" onSubmit={handleSubmit}>
+      <header>
+        <p className="eyebrow">Checkout</p>
+        <h1>Finalizar pedido</h1>
+      </header>
+
+      <section className="public-checkout-block">
+        <h2>1. Modo do pedido</h2>
+        <div className="public-delivery-options">
+          <label className="public-delivery-option">
+            <input
+              type="radio"
+              name="deliveryMode"
+              value={DeliveryMode.PICKUP}
+              checked={deliveryMode === DeliveryMode.PICKUP}
+              onChange={() => setDeliveryMode(DeliveryMode.PICKUP)}
+            />
+            <span>
+              <strong>Retirar no local</strong>
+              <span className="muted">Você passa para buscar e pagar.</span>
+            </span>
+          </label>
+          <label className="public-delivery-option">
+            <input
+              type="radio"
+              name="deliveryMode"
+              value={DeliveryMode.DELIVERY}
+              checked={deliveryMode === DeliveryMode.DELIVERY}
+              onChange={() => setDeliveryMode(DeliveryMode.DELIVERY)}
+            />
+            <span>
+              <strong>Entregar no meu endereço</strong>
+              <span className="muted">Combinaremos a entrega após o pagamento.</span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section className="public-checkout-block">
+        <h2>2. Identificação</h2>
+
+        {customer ? (
+          <div className="field-grid">
+            <label className="field">
+              <span>Nome</span>
+              <input value={customer.name} disabled />
+            </label>
+            <label className="field">
+              <span>E-mail</span>
+              <input value={customer.email} disabled />
+            </label>
+            <label className="field">
+              <span>Telefone</span>
+              <input value={customer.phone} disabled />
+            </label>
+          </div>
+        ) : (
+          <div className="field-grid">
+            <label className="field">
+              <span>Nome completo</span>
+              <input value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
+            <label className="field">
+              <span>E-mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Telefone (com DDD)</span>
+              <input
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="(11) 91234-5678"
+                required
+              />
+            </label>
+          </div>
+        )}
+
+        {!customer ? (
+          <p className="muted">
+            Já tem conta?{" "}
+            <Link href={`/entrar?return=${encodeURIComponent("/checkout")}`}>Entrar</Link>
+          </p>
+        ) : null}
+
+        {deliveryMode === DeliveryMode.DELIVERY ? (
+          <div className="stack">
+            {customer && addresses.length > 0 ? (
+              <label className="field">
+                <span>Escolha um endereço cadastrado</span>
+                <select
+                  value={selectedAddressId ?? ""}
+                  onChange={(event) => setSelectedAddressId(event.target.value || null)}
+                >
+                  <option value="">Informar novo endereço</option>
+                  {addresses.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.street}, {address.number} — {address.neighborhood}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {(!customer || addresses.length === 0 || !selectedAddressId) ? (
+              <div className="field-grid">
+                <label className="field">
+                  <span>Rua</span>
+                  <input
+                    value={addressDraft.street}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, street: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Número</span>
+                  <input
+                    value={addressDraft.number}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, number: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Complemento</span>
+                  <input
+                    value={addressDraft.complement}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, complement: event.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Bairro</span>
+                  <input
+                    value={addressDraft.neighborhood}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, neighborhood: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Cidade</span>
+                  <input
+                    value={addressDraft.city}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, city: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>UF</span>
+                  <input
+                    value={addressDraft.state}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
+                    maxLength={2}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>CEP</span>
+                  <input
+                    value={addressDraft.zip}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, zip: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Ponto de referência</span>
+                  <input
+                    value={addressDraft.reference}
+                    onChange={(event) => setAddressDraft((current) => ({ ...current, reference: event.target.value }))}
+                  />
+                </label>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="public-checkout-block">
+        <h2>3. Revisão e finalização</h2>
+
+        <ul className="public-checkout-summary">
+          {items.map((item) => {
+            const product = productsLookup[item.productId];
+            const lineTotal = (product?.priceCents ?? 0) * item.quantity;
+            return (
+              <li key={item.productId}>
+                <span>{product?.name ?? "Produto indisponível"} × {item.quantity}</span>
+                <strong>{formatCurrency(lineTotal)}</strong>
+              </li>
+            );
+          })}
+          <li className="public-cart-summary">
+            <span>Total</span>
+            <strong>{formatCurrency(total)}</strong>
+          </li>
+        </ul>
+
+        <label className="field">
+          <span>Observações (opcional)</span>
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            rows={3}
+            maxLength={240}
+            placeholder="Ex.: cerveja bem gelada, troco para R$ 100"
+          />
+        </label>
+
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={consentData}
+            onChange={(event) => setConsentData(event.target.checked)}
+          />
+          <span>
+            Aceito a{" "}
+            <Link href="/politica-de-privacidade" target="_blank">
+              Política de Privacidade
+            </Link>{" "}
+            e o processamento dos meus dados.
+          </span>
+        </label>
+
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={consentMarketing}
+            onChange={(event) => setConsentMarketing(event.target.checked)}
+          />
+          <span>Quero receber promoções e novidades (opcional).</span>
+        </label>
+
+        {!customer ? (
+          <>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={createAccount}
+                onChange={(event) => setCreateAccount(event.target.checked)}
+              />
+              <span>Criar conta com meus dados para próximos pedidos.</span>
+            </label>
+
+            {createAccount ? (
+              <div className="field-grid">
+                <label className="field">
+                  <span>Senha (8+ caracteres com letra e número)</span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Confirmar senha</span>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {error ? <p className="form-error compact">{error}</p> : null}
+
+        <button type="submit" className="button button-primary" disabled={isPending}>
+          {isPending ? "Enviando pedido..." : "Finalizar pedido"}
+        </button>
+      </section>
+    </form>
+  );
+}

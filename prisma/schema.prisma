@@ -48,6 +48,11 @@ enum WebOrderStatusActorType {
   system
 }
 
+enum DeliveryMode {
+  PICKUP
+  DELIVERY
+}
+
 model User {
   id                 String              @id @default(cuid())
   name               String
@@ -206,7 +211,8 @@ model Customer {
   email                   String            @unique
   name                    String
   phone                   String
-  passwordHash            String
+  passwordHash            String?
+  isGuest                 Boolean           @default(false)
   consentDataProcessingAt DateTime
   consentMarketingAt      DateTime?
   consentPolicyVersion    String
@@ -219,6 +225,7 @@ model Customer {
   updatedAt               DateTime          @updatedAt
 
   @@index([deletedAt])
+  @@index([isGuest])
 }
 
 model CustomerAddress {
@@ -261,6 +268,7 @@ model WebOrder {
   customerId          String
   customer            Customer            @relation(fields: [customerId], references: [id])
   status              WebOrderStatus      @default(PENDING_PAYMENT)
+  deliveryMode        DeliveryMode
   totalCents          Int
   notes               String?
   addressId           String?

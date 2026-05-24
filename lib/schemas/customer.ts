@@ -54,11 +54,32 @@ export const customerPublicSchema = z.object({
   name: z.string(),
   email: z.string(),
   phone: z.string(),
+  isGuest: z.boolean(),
   consentDataProcessingAt: z.string(),
   consentMarketingAt: z.string().nullable(),
   consentPolicyVersion: z.string(),
   createdAt: z.string(),
 });
+
+export const guestCustomerInputSchema = z
+  .object({
+    name: personNameFieldSchema("O nome do cliente", 80),
+    email: emailFieldSchema,
+    phone: phoneFieldSchema,
+    consentDataProcessing: consentDataProcessingSchema,
+    consentMarketing: consentMarketingSchema,
+    policyVersion: policyVersionSchema,
+  })
+  .transform((data) => ({
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    consentDataProcessing: data.consentDataProcessing,
+    consentMarketing: data.consentMarketing,
+    policyVersion: data.policyVersion,
+  }));
+
+export type GuestCustomerInput = z.infer<typeof guestCustomerInputSchema>;
 
 export const customerSchema = customerPublicSchema.extend({
   deletedAt: z.string().nullable(),
