@@ -986,7 +986,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                       >
                         Estoque {product.stockQty}
                       </span>
-                      <div className="quantity-control">
+                      {/* <div className="quantity-control"> */}
                         <input
                           value={quantityByProduct[product.id] ?? "1"}
                           type="number"
@@ -1002,7 +1002,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                         >
                           Adicionar
                         </button>
-                      </div>
+                      {/* </div> */}
                     </div>
                   </div>
                 </article>

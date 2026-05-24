@@ -264,7 +264,6 @@ button {
 .button-primary {
   color: white;
   background: linear-gradient(135deg, var(--magenta) 0%, var(--coral) 100%);
-  box-shadow: 0 12px 24px rgba(201, 47, 136, 0.28);
 }
 
 .button-secondary {
@@ -784,7 +783,7 @@ button {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 241, 234, 0.95), rgba(255, 225, 211, 0.92));
+  /* background: linear-gradient(180deg, rgba(255, 241, 234, 0.95), rgba(255, 225, 211, 0.92)); */
 }
 
 .product-card-thumb {
@@ -803,6 +802,7 @@ button {
   gap: 0.65rem;
   padding: 1rem;
   min-width: 0;
+  background: rgba(244, 182, 79, 0.1);
 }
 
 .product-card-head {
@@ -880,6 +880,16 @@ button {
   gap: 1rem;
   flex: 0 1 auto;
   min-width: 0;
+}
+
+.pick-card-footer input {
+  width: 56px;
+  flex: 0 0 56px;
+  border: 1px solid rgba(131, 82, 115, 0.18);
+  border-radius: 12px;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: center;
 }
 
 .quantity-control input {
