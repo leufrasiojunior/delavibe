@@ -38,3 +38,15 @@ export function normalizeBarcode(value: string) {
 export function normalizePath(value: string) {
   return normalizeUnicode(value).trim();
 }
+
+export function normalizeEmail(value: string) {
+  return normalizeText(value).toLowerCase();
+}
+
+export function normalizePhone(value: string) {
+  return normalizeUnicode(value).replace(/\D+/g, "");
+}
+
+export function normalizeCep(value: string) {
+  return normalizeUnicode(value).replace(/\D+/g, "");
+}

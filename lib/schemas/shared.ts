@@ -9,6 +9,8 @@ export const stockMovementReasonSchema = z.enum([
   "comanda_item_add",
   "comanda_item_remove",
   "comanda_cancel_reversal",
+  "web_order_create",
+  "web_order_cancel_reversal",
 ]);
 
 export type Role = z.infer<typeof roleSchema>;
