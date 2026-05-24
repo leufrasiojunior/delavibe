@@ -1235,6 +1235,48 @@ button {
   gap: 0.5rem;
 }
 
+.web-order-navigation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.web-order-navigation .button {
+  width: 100%;
+}
+
+.button-google-maps {
+  color: white;
+  background: #1a73e8;
+  box-shadow: 0 6px 14px rgba(26, 115, 232, 0.28);
+}
+
+.button-google-maps:hover {
+  background: #1765c1;
+}
+
+.button-waze {
+  color: white;
+  background: #33ccff;
+  box-shadow: 0 6px 14px rgba(51, 204, 255, 0.32);
+}
+
+.button-waze:hover {
+  background: #1eb8eb;
+}
+
+.button-google-maps svg,
+.button-waze svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .web-order-navigation {
+    grid-template-columns: 1fr;
+  }
+}
+
 .web-order-items {
   list-style: none;
   padding: 0;
