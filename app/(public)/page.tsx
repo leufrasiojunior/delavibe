@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
 import { PublicCatalog } from "@/components/public-catalog";
-import { getOptionalServerSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { hasAdminAccount } from "@/lib/services/bootstrap-service";
 import { publicProductListSchema } from "@/lib/schemas/product";
@@ -12,13 +11,11 @@ export default async function PublicHomePage() {
   const adminExists = await hasAdminAccount();
 
   if (!adminExists) {
-    redirect("/setup");
+    redirect("/admin/setup");
   }
 
-  const adminSession = await getOptionalServerSession();
-  if (adminSession) {
-    redirect("/commandas");
-  }
+  // Admin logado pode ver o cardápio normalmente — a área administrativa
+  // fica em /admin/* e é acessada via item de menu específico.
 
   const products = await db.product.findMany({
     where: { isActive: true },

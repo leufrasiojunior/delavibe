@@ -25,7 +25,7 @@ export default async function WebOrderDetailPage({ params }: WebOrderDetailPageP
           <div>
             <p className="eyebrow">Pedido web</p>
             <h1>Detalhe do pedido</h1>
-            <Link className="button button-secondary compact" href="/pedidos-web">
+            <Link className="button button-secondary compact" href="/admin/pedidos-web">
               ← Voltar para pedidos web
             </Link>
           </div>

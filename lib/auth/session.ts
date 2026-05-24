@@ -197,13 +197,13 @@ export async function getOptionalServerSession() {
 
 export async function requireServerSession(allowedRoles?: Role[]) {
   if (!(await hasAdminAccount())) {
-    redirect("/setup");
+    redirect("/admin/setup");
   }
 
   const session = await getOptionalServerSession();
 
   if (!session) {
-    redirect("/login");
+    redirect("/admin/login");
   }
 
   assertRole(session.user.role, allowedRoles);

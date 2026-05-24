@@ -28,7 +28,7 @@ export function InitialAdminForm() {
         loginResponseSchema,
       )
         .then(() => {
-          router.replace("/commandas");
+          router.replace("/admin/commandas");
           router.refresh();
         })
         .catch((caughtError: unknown) => {

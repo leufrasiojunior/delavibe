@@ -22,7 +22,7 @@ export function LoginForm() {
     startTransition(() => {
       void apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify(payload) }, loginResponseSchema)
         .then(() => {
-          router.replace("/commandas");
+          router.replace("/admin/commandas");
           router.refresh();
         })
         .catch((caughtError: unknown) => {

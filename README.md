@@ -13,7 +13,7 @@ PDV local com comandas, baixa automática de estoque, histórico de vendas e bas
 ## Principais pontos
 
 - Login com sessão em cookie `HttpOnly` e proteção CSRF.
-- O primeiro administrador agora é criado no primeiro acesso em `/setup`.
+- O primeiro administrador agora é criado no primeiro acesso em `/admin/setup`.
 - Backend valida toda entrada com `zod` e recalcula regras críticas no servidor.
 - Frontend valida respostas da API antes de aceitar dados no estado da UI.
 - Cada venda em comanda reduz estoque e gera movimentação auditável.
@@ -232,9 +232,9 @@ No Coolify:
 Fluxo esperado em produção:
 
 - o seed não cria admin padrão
-- no primeiro acesso ao domínio do app, o sistema abre `/setup`
+- no primeiro acesso ao domínio do app, o sistema abre `/admin/setup`
 - a primeira conta criada recebe perfil `admin`
-- depois disso, `/setup` passa a redirecionar para `login` ou para a área autenticada
+- depois disso, `/admin/setup` passa a redirecionar para `/admin/login` ou para a área autenticada
 
 ## Imagens de produto
 
