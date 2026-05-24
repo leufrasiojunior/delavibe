@@ -77,6 +77,10 @@ export function CustomerLoginForm({ returnUrl }: CustomerLoginFormProps) {
       <p className="muted">
         Ainda não tem conta? <Link href="/criar-conta">Criar conta</Link>
       </p>
+
+      <p className="muted public-admin-link">
+        É administrador? <Link href="/admin/login">Acessar painel</Link>
+      </p>
     </form>
   );
 }

@@ -1598,6 +1598,17 @@ button {
   font-weight: 600;
 }
 
+.public-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+}
+
+.public-admin-link {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+}
+
 .public-stack {
   display: grid;
   gap: 1.5rem;
