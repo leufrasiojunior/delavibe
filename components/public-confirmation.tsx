@@ -34,9 +34,17 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
   return (
     <section className="public-confirmation">
       <div className="public-confirmation-header">
-        <p className="eyebrow">Pedido recebido</p>
-        <h1>Obrigado pelo pedido!</h1>
-        <p>Número do pedido: <strong>#{shortNumber}</strong></p>
+        <div className="public-confirmation-check" aria-hidden>
+          ✓
+        </div>
+        <p className="eyebrow">Tudo pronto!</p>
+        <h1>Recebemos o seu pedido, obrigado!</h1>
+        <p className="muted">
+          Anote o número do pedido caso precise nos contatar — também enviamos esta confirmação na tela.
+        </p>
+        <p className="public-confirmation-number">
+          Número do pedido: <strong>#{shortNumber}</strong>
+        </p>
         <p>
           Status atual: <strong>{STATUS_LABELS[order.status]}</strong>
         </p>
@@ -95,7 +103,11 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
         ) : null}
       </div>
 
-      <Link href="/" className="button button-secondary compact">Voltar ao cardápio</Link>
+      <div className="button-row">
+        <Link href="/" className="button button-primary">
+          Voltar ao cardápio
+        </Link>
+      </div>
     </section>
   );
 }
