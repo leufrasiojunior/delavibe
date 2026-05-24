@@ -220,19 +220,25 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
             return (
               <div className="web-order-navigation">
                 <a
-                  className="button button-secondary compact"
+                  className="button button-google-maps compact"
                   href={`https://www.google.com/maps/search/?api=1&query=${query}`}
                   target="_blank"
                   rel="noreferrer noopener"
                 >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z" />
+                  </svg>
                   Abrir no Google Maps
                 </a>
                 <a
-                  className="button button-secondary compact"
+                  className="button button-waze compact"
                   href={`https://www.waze.com/ul?q=${query}&navigate=yes`}
                   target="_blank"
                   rel="noreferrer noopener"
                 >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M21 11c0 3.87-2.79 7.15-6.5 7.84V20a2 2 0 1 1-4 0v-.16a8.05 8.05 0 0 1-2.27-.8 2 2 0 1 1-1.69-3.6c.59.28 1.23.48 1.91.6a5 5 0 0 0 9.55-2.04 1 1 0 1 1 2-.1V11ZM12 3a8 8 0 0 1 8 7.6 1 1 0 1 1-2 .1A6 6 0 0 0 6 11v1a1 1 0 0 1-2 0v-1a8 8 0 0 1 8-8Zm-2 6a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Zm4 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z" />
+                  </svg>
                   Abrir no Waze
                 </a>
               </div>
