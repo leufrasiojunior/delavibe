@@ -50,6 +50,66 @@ export const webOrderListFiltersSchema = z.object({
   skip: z.coerce.number().int().min(0).default(0),
 });
 
+const WEB_ORDER_ACTIVE_STATUSES = [
+  WebOrderStatus.PENDING_PAYMENT,
+  WebOrderStatus.PAID,
+  WebOrderStatus.PREPARING,
+  WebOrderStatus.READY,
+] as const;
+
+const WEB_ORDER_HISTORY_STATUSES = [
+  WebOrderStatus.DELIVERED,
+  WebOrderStatus.CANCELLED,
+] as const;
+
+export const WEB_ORDER_ACTIVE_STATUS_LIST: WebOrderStatus[] = [...WEB_ORDER_ACTIVE_STATUSES];
+export const WEB_ORDER_HISTORY_STATUS_LIST: WebOrderStatus[] = [...WEB_ORDER_HISTORY_STATUSES];
+
+export const webOrderListQuerySchema = z
+  .object({
+    tab: z.enum(["active", "history"]).default("active"),
+    status: z.preprocess((value) => {
+      if (Array.isArray(value)) {
+        return value;
+      }
+      if (typeof value === "string" && value.length > 0) {
+        return [value];
+      }
+      return value;
+    }, z.array(webOrderStatusSchema).optional()),
+    query: searchQueryFieldSchema,
+    take: z.coerce.number().int().min(1).max(200).default(50),
+    skip: z.coerce.number().int().min(0).default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.status?.length) {
+      return;
+    }
+
+    const allowed: WebOrderStatus[] =
+      data.tab === "active" ? WEB_ORDER_ACTIVE_STATUS_LIST : WEB_ORDER_HISTORY_STATUS_LIST;
+
+    for (const value of data.status) {
+      if (!allowed.includes(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["status"],
+          message: `Status ${value} não pertence à aba ${data.tab}.`,
+        });
+      }
+    }
+  });
+
+export const webOrderListResponseSchema = z.object({
+  items: z.array(z.lazy(() => webOrderSchema)),
+  total: z.number().int(),
+  take: z.number().int(),
+  skip: z.number().int(),
+});
+
+export type WebOrderListQuery = z.infer<typeof webOrderListQuerySchema>;
+export type WebOrderListResponse = z.infer<typeof webOrderListResponseSchema>;
+
 export const webOrderItemSchema = z.object({
   id: z.string(),
   productId: z.string(),
