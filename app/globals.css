@@ -877,7 +877,7 @@ button {
 .quantity-control {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -885,6 +885,7 @@ button {
 .quantity-control input {
   width: 56px;
   flex: 0 0 56px;
+  margin-right: 0.25rem;
   border: 1px solid rgba(131, 82, 115, 0.18);
   border-radius: 12px;
   padding: 0.55rem 0.5rem;
