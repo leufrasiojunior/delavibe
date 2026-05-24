@@ -25,7 +25,9 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-RUN groupadd -r nodejs && useradd -r -g nodejs nextjs && chown -R nextjs:nodejs /app
+RUN groupadd -r nodejs && useradd -r -g nodejs nextjs \
+  && mkdir -p /app/uploads/products \
+  && chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 3000
 CMD ["npm", "run", "start"]

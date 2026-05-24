@@ -61,11 +61,14 @@ services:
       NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
       TRUST_PROXY_HEADERS: "true"
       TZ: America/Sao_Paulo
+      UPLOADS_DIR: /app/uploads
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    volumes:
+      - uploads_data:/app/uploads
     healthcheck:
       test:
         [
@@ -83,3 +86,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

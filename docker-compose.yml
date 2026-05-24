@@ -42,11 +42,14 @@ services:
       APP_TIMEZONE: America/Sao_Paulo
       NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
       TZ: America/Sao_Paulo
+      UPLOADS_DIR: /app/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
       - "3010:3000"
+    volumes:
+      - uploads_data:/app/uploads
 
   migrate:
     image: delavibe/migrate:local
@@ -95,3 +98,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

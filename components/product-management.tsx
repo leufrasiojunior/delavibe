@@ -1,15 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, apiUpload } from "@/lib/api/client";
 import { productSchema, type ProductDto } from "@/lib/schemas/product";
 import {
   centsToCurrencyInput,
   formatCurrency,
   formatCurrencyInput,
 } from "@/lib/utils/money";
+
+const placeholderImagePath = "/catalog-placeholder.jpg";
+const acceptedImageMime = "image/jpeg,image/png,image/webp";
 
 type ProductManagementProps = {
   products: ProductDto[];
@@ -22,7 +25,6 @@ type ProductFormState = {
   sku: string;
   barcode: string;
   category: string;
-  imagePath: string;
   unit: string;
   price: string;
   cost: string;
@@ -37,7 +39,6 @@ const emptyForm: ProductFormState = {
   sku: "",
   barcode: "",
   category: "",
-  imagePath: "",
   unit: "un",
   price: "",
   cost: "",
@@ -62,13 +63,29 @@ function buildProductDetails(product: ProductDto) {
   return parts.join(" · ");
 }
 
+function buildImageUrlWithCacheBust(product: ProductDto) {
+  if (!product.imagePath) {
+    return placeholderImagePath;
+  }
+
+  const version = Date.parse(product.updatedAt);
+  return `${product.imagePath}?v=${Number.isFinite(version) ? version : 0}`;
+}
+
 export function ProductManagement({ products, canManage }: ProductManagementProps) {
   const categoryListId = useId();
+  const fileInputId = useId();
   const router = useRouter();
   const [form, setForm] = useState<ProductFormState>(emptyForm);
+  const [editingProduct, setEditingProduct] = useState<ProductDto | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [imageFeedback, setImageFeedback] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sortedProducts = useMemo(
     () => [...products].sort((left, right) => left.name.localeCompare(right.name)),
@@ -87,6 +104,28 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
     [products],
   );
 
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedFile]);
+
+  function clearSelectedFile() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setSelectedFile(null);
+  }
+
   function fillForm(product: ProductDto) {
     setForm({
       id: product.id,
@@ -94,7 +133,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
       sku: product.sku ?? "",
       barcode: product.barcode,
       category: product.category ?? "",
-      imagePath: product.imagePath ?? "",
       unit: product.unit,
       price: centsToCurrencyInput(product.priceCents),
       cost: centsToCurrencyInput(product.costCents),
@@ -102,14 +140,37 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
       minimumStock: String(product.minimumStock),
       isActive: product.isActive,
     });
+    setEditingProduct(product);
     setFeedback(null);
     setError(null);
+    setImageFeedback(null);
+    setImageError(null);
+    clearSelectedFile();
   }
 
   function resetForm() {
     setForm(emptyForm);
+    setEditingProduct(null);
     setFeedback(null);
     setError(null);
+    setImageFeedback(null);
+    setImageError(null);
+    clearSelectedFile();
+  }
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+
+    setImageError(null);
+    setImageFeedback(null);
+    setSelectedFile(file);
+  }
+
+  async function uploadImageForProduct(productId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return apiUpload(`/api/products/${productId}/image`, formData, productSchema);
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -121,6 +182,8 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
 
     setFeedback(null);
     setError(null);
+    setImageError(null);
+    setImageFeedback(null);
 
     const payload = {
       ...(form.id ? { id: form.id } : {}),
@@ -128,7 +191,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
       sku: form.sku,
       barcode: form.barcode,
       category: form.category,
-      imagePath: form.imagePath || null,
+      imagePath: editingProduct?.imagePath ?? null,
       unit: form.unit,
       price: form.price,
       cost: form.cost,
@@ -146,16 +209,85 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
         },
         productSchema,
       )
-        .then(() => {
-          setFeedback(form.id ? "Produto atualizado com sucesso." : "Produto cadastrado com sucesso.");
+        .then(async (savedProduct) => {
+          if (selectedFile) {
+            try {
+              await uploadImageForProduct(savedProduct.id, selectedFile);
+              setImageFeedback("Imagem enviada com sucesso.");
+            } catch (uploadError: unknown) {
+              setImageError(
+                uploadError instanceof Error
+                  ? uploadError.message
+                  : "Falha ao enviar a imagem.",
+              );
+              setFeedback(
+                form.id
+                  ? "Produto atualizado, porém a imagem não foi salva."
+                  : "Produto cadastrado, porém a imagem não foi salva.",
+              );
+              router.refresh();
+              return;
+            }
+          }
+
+          setFeedback(
+            form.id
+              ? "Produto atualizado com sucesso."
+              : "Produto cadastrado com sucesso.",
+          );
           resetForm();
           router.refresh();
         })
         .catch((caughtError: unknown) => {
-          setError(caughtError instanceof Error ? caughtError.message : "Falha ao salvar o produto.");
+          setError(
+            caughtError instanceof Error ? caughtError.message : "Falha ao salvar o produto.",
+          );
         });
     });
   }
+
+  function handleRemoveImage() {
+    if (!editingProduct || !canManage) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja remover a imagem? O produto voltará a usar o placeholder.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setImageError(null);
+    setImageFeedback(null);
+
+    startTransition(() => {
+      void apiFetch(
+        `/api/products/${editingProduct.id}/image`,
+        { method: "DELETE" },
+        productSchema,
+      )
+        .then(() => {
+          setImageFeedback("Imagem removida.");
+          setEditingProduct((current) =>
+            current ? { ...current, imagePath: null } : current,
+          );
+          clearSelectedFile();
+          router.refresh();
+        })
+        .catch((caughtError: unknown) => {
+          setImageError(
+            caughtError instanceof Error ? caughtError.message : "Falha ao remover a imagem.",
+          );
+        });
+    });
+  }
+
+  const hasExistingImage = Boolean(editingProduct?.imagePath);
+  const showPreview = Boolean(previewUrl);
+  const imagePreviewSrc = previewUrl
+    || (editingProduct?.imagePath ? buildImageUrlWithCacheBust(editingProduct) : null);
 
   return (
     <div className="page-grid two-columns">
@@ -215,14 +347,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                 </datalist>
               </label>
               <label className="field">
-                <span>Imagem</span>
-                <input
-                  value={form.imagePath}
-                  onChange={(event) => setForm((current) => ({ ...current, imagePath: event.target.value }))}
-                  placeholder="/catalog-placeholder.jpg"
-                />
-              </label>
-              <label className="field">
                 <span>Unidade</span>
                 <input
                   value={form.unit}
@@ -276,6 +400,68 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
               </label>
             </div>
 
+            <div className="product-image-upload">
+              <div className="product-image-upload-header">
+                <span>Imagem do produto</span>
+                <small className="muted">JPG, PNG ou WebP. Máximo 2 MB.</small>
+              </div>
+
+              <div className="product-image-upload-body">
+                <div className="product-image-upload-preview">
+                  {imagePreviewSrc ? (
+                    <img
+                      src={imagePreviewSrc}
+                      alt="Pré-visualização do produto"
+                      className="product-image-upload-thumb"
+                    />
+                  ) : (
+                    <div className="product-image-upload-empty">
+                      <span>Sem imagem</span>
+                      <small className="muted">Placeholder será usado</small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="product-image-upload-controls">
+                  <label className="button button-secondary compact" htmlFor={fileInputId}>
+                    {hasExistingImage || showPreview ? "Trocar imagem" : "Selecionar imagem"}
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    id={fileInputId}
+                    type="file"
+                    accept={acceptedImageMime}
+                    onChange={handleFileChange}
+                    className="visually-hidden"
+                  />
+
+                  {showPreview ? (
+                    <button
+                      className="button button-secondary compact"
+                      type="button"
+                      onClick={clearSelectedFile}
+                    >
+                      Cancelar seleção
+                    </button>
+                  ) : null}
+
+                  {hasExistingImage && !showPreview ? (
+                    <button
+                      className="button button-secondary compact"
+                      type="button"
+                      onClick={handleRemoveImage}
+                      disabled={isPending}
+                    >
+                      Remover imagem
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {imageFeedback ? <p className="form-success compact">{imageFeedback}</p> : null}
+              {imageError ? <p className="form-error compact">{imageError}</p> : null}
+            </div>
+
             <label className="checkbox-field">
               <input
                 type="checkbox"
@@ -327,7 +513,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                   <td>
                     <div className="product-row-main">
                       <img
-                        src={product.imagePath || "/catalog-placeholder.jpg"}
+                        src={buildImageUrlWithCacheBust(product)}
                         alt={product.name}
                         className="product-row-thumb"
                         width={56}
