@@ -167,7 +167,7 @@ export function WebOrdersBoard({
     const params = buildSearchParamsFromFilters(filters);
     const current = searchParams.toString();
     if (params.toString() !== current) {
-      router.replace(`/pedidos-web?${params.toString()}`, { scroll: false });
+      router.replace(`/admin/pedidos-web?${params.toString()}`, { scroll: false });
     }
   }, [filters, router, searchParams]);
 
@@ -328,7 +328,7 @@ export function WebOrdersBoard({
                       ) : null}
                     </p>
                   </div>
-                  <Link className="button button-secondary compact" href={`/pedidos-web/${order.id}`}>
+                  <Link className="button button-secondary compact" href={`/admin/pedidos-web/${order.id}`}>
                     Ver detalhe
                   </Link>
                 </li>
