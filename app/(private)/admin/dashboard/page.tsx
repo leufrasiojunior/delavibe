@@ -27,7 +27,7 @@ function buildDashboardTabHref(tab: DashboardTab, startInput: string, endInput: 
   }
 
   const query = params.toString();
-  return query ? `/dashboard?${query}` : "/dashboard";
+  return query ? `/admin/dashboard?${query}` : "/admin/dashboard";
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               : "Acompanhe tendência diária, desempenho do período e os itens que mais puxam faturamento."}
           </p>
         </div>
-        <Link href="/commandas" className="button button-primary">
+        <Link href="/admin/commandas" className="button button-primary">
           Ir para o PDV
         </Link>
       </section>
@@ -103,7 +103,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <p className="eyebrow">Em atendimento</p>
                   <h2>Comandas abertas</h2>
                 </div>
-                <Link href="/commandas" className="button button-secondary">
+                <Link href="/admin/commandas" className="button button-secondary">
                   Abrir comandas
                 </Link>
               </div>

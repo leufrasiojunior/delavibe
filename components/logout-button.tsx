@@ -21,7 +21,7 @@ export function LogoutButton() {
     startTransition(() => {
       void apiFetch("/api/auth/logout", { method: "POST" }, logoutResponseSchema)
         .then(() => {
-          router.replace("/login");
+          router.replace("/admin/login");
           router.refresh();
         })
         .catch((caughtError: unknown) => {
