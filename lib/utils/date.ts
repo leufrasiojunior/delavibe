@@ -66,3 +66,38 @@ export function parseOptionalDate(value?: string | null, edge: "start" | "end" =
 
   return parsed;
 }
+
+const relativeTimeFormatter = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+
+export function formatTimeAgo(input: Date | string, now: Date = new Date()): string {
+  const date = input instanceof Date ? input : new Date(input);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const diffMs = date.getTime() - now.getTime();
+  const diffAbs = Math.abs(diffMs);
+  const seconds = Math.round(diffMs / 1000);
+  const minutes = Math.round(diffMs / (60 * 1000));
+  const hours = Math.round(diffMs / (60 * 60 * 1000));
+  const days = Math.round(diffMs / (24 * 60 * 60 * 1000));
+
+  if (diffAbs < 60 * 1000) {
+    return relativeTimeFormatter.format(seconds, "second");
+  }
+
+  if (diffAbs < 60 * 60 * 1000) {
+    return relativeTimeFormatter.format(minutes, "minute");
+  }
+
+  if (diffAbs < 24 * 60 * 60 * 1000) {
+    return relativeTimeFormatter.format(hours, "hour");
+  }
+
+  if (diffAbs < 30 * 24 * 60 * 60 * 1000) {
+    return relativeTimeFormatter.format(days, "day");
+  }
+
+  return formatDisplayDate(date);
+}
