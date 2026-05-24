@@ -798,12 +798,16 @@ button {
 }
 
 .product-card-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.8rem;
   padding: 1rem;
   min-width: 0;
-  grid-template-rows: minmax(3rem, auto) minmax(2.6rem, auto) auto;
   height: 100%;
+}
+
+.product-card-body .pick-card-footer {
+  margin-top: auto;
 }
 
 .product-card-head {
@@ -1636,7 +1640,7 @@ button {
   display: flex;
   flex-direction: column;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgb(255, 255, 255);
   border: 1px solid var(--panel-border);
   overflow: hidden;
 }
@@ -1647,7 +1651,6 @@ button {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  background: rgba(244, 182, 79, 0.1);
 }
 
 .public-product-card-img {
@@ -1664,6 +1667,7 @@ button {
   display: grid;
   gap: 0.55rem;
   padding: 0.95rem 1rem 1.1rem;
+  background: rgba(244, 182, 79, 0.1);
 }
 
 .public-product-card-body h3 {
