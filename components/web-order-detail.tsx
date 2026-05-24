@@ -205,6 +205,39 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
             {order.addressNeighborhood} · {order.addressCity}/{order.addressState} · CEP {order.addressZip}
           </p>
           {order.addressReference ? <p className="muted">Referência: {order.addressReference}</p> : null}
+
+          {(() => {
+            const queryParts = [
+              `${order.addressStreet}, ${order.addressNumber}`,
+              order.addressNeighborhood,
+              order.addressCity && order.addressState
+                ? `${order.addressCity} - ${order.addressState}`
+                : order.addressCity ?? order.addressState ?? "",
+              order.addressZip ? `CEP ${order.addressZip}` : "",
+            ].filter((part) => part && part.trim().length > 0);
+            const query = encodeURIComponent(queryParts.join(", "));
+
+            return (
+              <div className="web-order-navigation">
+                <a
+                  className="button button-secondary compact"
+                  href={`https://www.google.com/maps/search/?api=1&query=${query}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Abrir no Google Maps
+                </a>
+                <a
+                  className="button button-secondary compact"
+                  href={`https://www.waze.com/ul?q=${query}&navigate=yes`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Abrir no Waze
+                </a>
+              </div>
+            );
+          })()}
         </section>
       ) : null}
 
