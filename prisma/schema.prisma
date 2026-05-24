@@ -30,32 +30,54 @@ enum StockMovementReason {
   comanda_item_add
   comanda_item_remove
   comanda_cancel_reversal
+  web_order_create
+  web_order_cancel_reversal
+}
+
+enum WebOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum WebOrderStatusActorType {
+  admin
+  system
+}
+
+enum DeliveryMode {
+  PICKUP
+  DELIVERY
 }
 
 model User {
-  id            String          @id @default(cuid())
-  name          String
-  username      String          @unique
-  passwordHash  String
-  role          Role            @default(operator)
-  isActive      Boolean         @default(true)
-  sessions      Session[]
-  commandas     Commanda[]
-  payments      Payment[]
-  stockMoves    StockMovement[]
-  auditLogs     AuditLog[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id                 String              @id @default(cuid())
+  name               String
+  username           String              @unique
+  passwordHash       String
+  role               Role                @default(operator)
+  isActive           Boolean             @default(true)
+  sessions           Session[]
+  commandas          Commanda[]
+  payments           Payment[]
+  stockMoves         StockMovement[]
+  auditLogs          AuditLog[]
+  webOrderStatusLogs WebOrderStatusLog[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
-  csrfToken  String
-  expiresAt  DateTime
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  csrfToken String
+  expiresAt DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -76,6 +98,7 @@ model Product {
   isActive      Boolean         @default(true)
   items         ComandaItem[]
   stockMoves    StockMovement[]
+  webOrderItems WebOrderItem[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -84,38 +107,38 @@ model Product {
 }
 
 model Commanda {
-  id            String          @id @default(cuid())
-  number        Int             @unique @default(autoincrement())
-  status        CommandaStatus  @default(open)
+  id            String         @id @default(cuid())
+  number        Int            @unique @default(autoincrement())
+  status        CommandaStatus @default(open)
   customerName  String?
   notes         String?
-  subtotalCents Int             @default(0)
-  discountCents Int             @default(0)
-  totalCents    Int             @default(0)
+  subtotalCents Int            @default(0)
+  discountCents Int            @default(0)
+  totalCents    Int            @default(0)
   operatorId    String
-  operator      User            @relation(fields: [operatorId], references: [id])
+  operator      User           @relation(fields: [operatorId], references: [id])
   items         ComandaItem[]
   payments      Payment[]
   closedAt      DateTime?
   cancelledAt   DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([status, createdAt])
   @@index([operatorId])
 }
 
 model ComandaItem {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   comandaId      String
   productId      String
   quantity       Int
   unitPriceCents Int
   subtotalCents  Int
-  comanda        Commanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  product        Product   @relation(fields: [productId], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  comanda        Commanda @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([comandaId, createdAt])
   @@index([productId])
@@ -138,7 +161,7 @@ model Payment {
 }
 
 model StockMovement {
-  id             String               @id @default(cuid())
+  id             String              @id @default(cuid())
   productId      String
   actorUserId    String?
   quantityDelta  Int
@@ -147,9 +170,9 @@ model StockMovement {
   notes          String?
   referenceType  String?
   referenceId    String?
-  product        Product              @relation(fields: [productId], references: [id])
-  actor          User?                @relation(fields: [actorUserId], references: [id])
-  createdAt      DateTime             @default(now())
+  product        Product             @relation(fields: [productId], references: [id])
+  actor          User?               @relation(fields: [actorUserId], references: [id])
+  createdAt      DateTime            @default(now())
 
   @@index([productId, createdAt])
   @@index([actorUserId])
@@ -181,4 +204,120 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model Customer {
+  id                      String            @id @default(cuid())
+  email                   String            @unique
+  name                    String
+  phone                   String
+  passwordHash            String?
+  isGuest                 Boolean           @default(false)
+  consentDataProcessingAt DateTime
+  consentMarketingAt      DateTime?
+  consentPolicyVersion    String
+  consentIpAddress        String?
+  deletedAt               DateTime?
+  addresses               CustomerAddress[]
+  sessions                CustomerSession[]
+  webOrders               WebOrder[]
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([deletedAt])
+  @@index([isGuest])
+}
+
+model CustomerAddress {
+  id           String     @id @default(cuid())
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  zip          String
+  reference    String?
+  isDefault    Boolean    @default(false)
+  isActive     Boolean    @default(true)
+  webOrders    WebOrder[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([customerId])
+  @@index([customerId, isDefault])
+}
+
+model CustomerSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  csrfToken  String
+  expiresAt  DateTime
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model WebOrder {
+  id                  String              @id @default(cuid())
+  customerId          String
+  customer            Customer            @relation(fields: [customerId], references: [id])
+  status              WebOrderStatus      @default(PENDING_PAYMENT)
+  deliveryMode        DeliveryMode
+  totalCents          Int
+  notes               String?
+  addressId           String?
+  address             CustomerAddress?    @relation(fields: [addressId], references: [id])
+  addressStreet       String?
+  addressNumber       String?
+  addressComplement   String?
+  addressNeighborhood String?
+  addressCity         String?
+  addressState        String?
+  addressZip          String?
+  addressReference    String?
+  items               WebOrderItem[]
+  statusLogs          WebOrderStatusLog[]
+  statusUpdatedAt     DateTime            @default(now())
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model WebOrderItem {
+  id             String   @id @default(cuid())
+  webOrderId     String
+  webOrder       WebOrder @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  productName    String
+  quantity       Int
+  unitPriceCents Int
+  lineTotalCents Int
+  createdAt      DateTime @default(now())
+
+  @@index([webOrderId, createdAt])
+  @@index([productId])
+}
+
+model WebOrderStatusLog {
+  id          String                  @id @default(cuid())
+  webOrderId  String
+  webOrder    WebOrder                @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
+  fromStatus  WebOrderStatus?
+  toStatus    WebOrderStatus
+  actorUserId String?
+  actor       User?                   @relation(fields: [actorUserId], references: [id])
+  actorType   WebOrderStatusActorType
+  notes       String?
+  createdAt   DateTime                @default(now())
+
+  @@index([webOrderId, createdAt])
 }

@@ -70,6 +70,37 @@ function buildErrorMessage(error: z.infer<typeof errorEnvelopeSchema>["error"]) 
     .join(" ");
 }
 
+async function parseEnvelope<TSchema extends z.ZodTypeAny>(
+  response: Response,
+  schema: TSchema,
+): Promise<z.infer<TSchema>> {
+  const parsedJson = await response
+    .json()
+    .catch(() => ({ data: null, error: { code: "invalid_json", message: "Resposta inválida do servidor." } }));
+
+  if (!response.ok) {
+    const parsedError = errorEnvelopeSchema.safeParse(parsedJson);
+
+    if (parsedError.success) {
+      throw new ApiClientError(
+        buildErrorMessage(parsedError.data.error),
+        parsedError.data.error.code,
+        parsedError.data.error.details,
+      );
+    }
+
+    throw new ApiClientError("Recebemos uma resposta inválida do servidor.");
+  }
+
+  const parsed = successEnvelopeSchema(schema).safeParse(parsedJson);
+
+  if (!parsed.success) {
+    throw new ApiClientError("O servidor respondeu fora do contrato esperado.");
+  }
+
+  return parsed.data.data;
+}
+
 export async function apiFetch<TSchema extends z.ZodTypeAny>(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -96,29 +127,33 @@ export async function apiFetch<TSchema extends z.ZodTypeAny>(
     headers,
   });
 
-  const parsedJson = await response
-    .json()
-    .catch(() => ({ data: null, error: { code: "invalid_json", message: "Resposta inválida do servidor." } }));
+  return parseEnvelope(response, schema);
+}
 
-  if (!response.ok) {
-    const parsedError = errorEnvelopeSchema.safeParse(parsedJson);
+export async function apiUpload<TSchema extends z.ZodTypeAny>(
+  input: RequestInfo | URL,
+  formData: FormData,
+  schema: TSchema,
+  init: Omit<RequestInit, "body" | "headers"> & { headers?: HeadersInit } = {},
+): Promise<z.infer<TSchema>> {
+  const headers = new Headers(init.headers || {});
+  const csrfToken = getCsrfToken();
 
-    if (parsedError.success) {
-      throw new ApiClientError(
-        buildErrorMessage(parsedError.data.error),
-        parsedError.data.error.code,
-        parsedError.data.error.details,
-      );
-    }
-
-    throw new ApiClientError("Recebemos uma resposta inválida do servidor.");
+  if (csrfToken) {
+    headers.set("x-csrf-token", csrfToken);
   }
 
-  const parsed = successEnvelopeSchema(schema).safeParse(parsedJson);
+  // Importante: NAO setar Content-Type. O browser define automaticamente
+  // com boundary correto para multipart/form-data.
+  headers.delete("Content-Type");
 
-  if (!parsed.success) {
-    throw new ApiClientError("O servidor respondeu fora do contrato esperado.");
-  }
+  const response = await fetch(input, {
+    method: init.method || "POST",
+    ...init,
+    body: formData,
+    credentials: "include",
+    headers,
+  });
 
-  return parsed.data.data;
+  return parseEnvelope(response, schema);
 }

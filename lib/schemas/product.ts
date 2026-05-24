@@ -80,6 +80,23 @@ export const productSchema = z.object({
 
 export const productListSchema = z.array(productSchema);
 
+export const publicProductSchema = productSchema.pick({
+  id: true,
+  name: true,
+  category: true,
+  imagePath: true,
+  unit: true,
+  priceCents: true,
+  stockQty: true,
+  minimumStock: true,
+  isActive: true,
+  updatedAt: true,
+});
+
+export const publicProductListSchema = z.array(publicProductSchema);
+
+export type PublicProductDto = z.infer<typeof publicProductSchema>;
+
 export const createProductInputSchema = productFormSchema.transform((data) => ({
   name: normalizeSafeName(data.name),
   sku: normalizeSafeCode(data.sku) ?? null,
