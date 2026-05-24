@@ -21,6 +21,7 @@ type ProtectedRouteOptions = {
   roles?: Role[];
   rateLimitPolicy?: RateLimitPolicyName;
   requireJsonBody?: boolean;
+  requireMultipart?: boolean;
   requireOrigin?: boolean;
   requireCsrf?: boolean;
   rateLimitIdentifier?: string | null;
@@ -44,6 +45,20 @@ function assertJsonContentType(request: NextRequest) {
       "O conteúdo enviado não está no formato JSON esperado.",
       null,
       "Envie a requisição com Content-Type application/json.",
+    );
+  }
+}
+
+function assertMultipartContentType(request: NextRequest) {
+  const contentType = request.headers.get("content-type")?.toLowerCase() || "";
+
+  if (!contentType.startsWith("multipart/form-data")) {
+    throw new AppError(
+      400,
+      "invalid_content_type",
+      "O conteúdo enviado não está no formato multipart esperado.",
+      null,
+      "Envie a requisição com Content-Type multipart/form-data.",
     );
   }
 }
@@ -109,8 +124,22 @@ async function guardRoute(
 ): Promise<Omit<ProtectedRouteContext, "requestId">> {
   const auth = options.auth ?? "required";
 
+  if (options.requireJsonBody && options.requireMultipart) {
+    throw new AppError(
+      500,
+      "route_misconfigured",
+      "A rota foi configurada com tipos de corpo incompatíveis.",
+      null,
+      "Selecione apenas um entre requireJsonBody e requireMultipart.",
+    );
+  }
+
   if (options.requireJsonBody) {
     assertJsonContentType(request);
+  }
+
+  if (options.requireMultipart) {
+    assertMultipartContentType(request);
   }
 
   if (options.requireOrigin) {

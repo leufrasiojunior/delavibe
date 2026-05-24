@@ -982,6 +982,95 @@ button {
   border: 1px solid rgba(131, 82, 115, 0.12);
 }
 
+.product-image-upload {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px dashed rgba(131, 82, 115, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.product-image-upload-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.product-image-upload-header span {
+  font-size: 0.92rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.product-image-upload-body {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.product-image-upload-preview {
+  width: 128px;
+  height: 128px;
+  border-radius: 18px;
+  background: rgba(201, 47, 136, 0.06);
+  border: 1px solid rgba(131, 82, 115, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.product-image-upload-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.product-image-upload-empty {
+  display: grid;
+  gap: 0.15rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.product-image-upload-empty span {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.product-image-upload-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.product-image-upload-controls label.button {
+  cursor: pointer;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .product-image-upload-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
 @media (max-width: 1200px) {
   .commanda-layout,
   .commanda-operational-grid,
