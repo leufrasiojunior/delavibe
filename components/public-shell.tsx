@@ -92,8 +92,9 @@ export function PublicShell({ customer, children }: PublicShellProps) {
       <main className="public-content">{children}</main>
 
       <footer className="public-footer">
-        <div>
+        <div className="public-footer-links">
           <Link href="/politica-de-privacidade">Política de privacidade</Link>
+          <Link href="/admin/login">Acesso administrativo</Link>
         </div>
         {storePhone ? <div className="muted">Contato: {storePhone}</div> : null}
       </footer>
