@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 export type CartItem = {
   productId: string;
@@ -9,11 +9,18 @@ export type CartItem = {
 };
 
 const STORAGE_KEY = "dela-cart-v1";
+const CHANGE_EVENT = "dela-cart-change";
+
+const EMPTY_ITEMS: CartItem[] = [];
+
+// Snapshot estável compartilhado entre todos os consumidores do hook na mesma aba.
+// useSyncExternalStore exige que getSnapshot retorne a MESMA referência quando
+// nada muda — por isso cacheamos o JSON raw e parseamos só quando ele difere.
+let cachedRaw: string | null = null;
+let cachedItems: CartItem[] = EMPTY_ITEMS;
 
 function isCartItem(value: unknown): value is CartItem {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
+  if (!value || typeof value !== "object") return false;
   const record = value as Partial<CartItem>;
   return (
     typeof record.productId === "string" &&
@@ -24,109 +31,115 @@ function isCartItem(value: unknown): value is CartItem {
   );
 }
 
-function readCartFromStorage(): CartItem[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
+function parseRaw(raw: string): CartItem[] {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter(isCartItem);
+    return Array.isArray(parsed) ? parsed.filter(isCartItem) : EMPTY_ITEMS;
   } catch {
-    return [];
+    return EMPTY_ITEMS;
   }
 }
 
-function writeCartToStorage(items: CartItem[]) {
-  if (typeof window === "undefined") {
-    return;
+function readRaw(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getSnapshot(): CartItem[] {
+  const raw = readRaw();
+  if (raw === cachedRaw) {
+    return cachedItems;
+  }
+  cachedRaw = raw;
+  cachedItems = raw ? parseRaw(raw) : EMPTY_ITEMS;
+  return cachedItems;
+}
+
+function getServerSnapshot(): CartItem[] {
+  return EMPTY_ITEMS;
+}
+
+function subscribe(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  function onStorage(event: StorageEvent) {
+    if (event.key === STORAGE_KEY) {
+      callback();
+    }
   }
 
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    // localStorage cheio ou desabilitado — silenciar
+  function onCustom() {
+    callback();
   }
+
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(CHANGE_EVENT, onCustom);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(CHANGE_EVENT, onCustom);
+  };
+}
+
+function writeCart(items: CartItem[]) {
+  if (typeof window === "undefined") return;
+
+  const raw = JSON.stringify(items);
+  cachedRaw = raw;
+  cachedItems = items;
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, raw);
+  } catch {
+    // localStorage cheio ou desabilitado — mantemos a atualização em memória
+  }
+
+  // Notifica outros hooks na MESMA aba (storage event só dispara em outras abas).
+  window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
 export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setItems(readCartFromStorage());
     setIsHydrated(true);
   }, []);
 
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    writeCartToStorage(items);
-  }, [items, isHydrated]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    function handleStorage(event: StorageEvent) {
-      if (event.key !== STORAGE_KEY) {
-        return;
-      }
-      setItems(readCartFromStorage());
-    }
-
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
-
   const addItem = useCallback((productId: string, quantity = 1) => {
-    if (quantity <= 0) {
-      return;
-    }
-
-    setItems((current) => {
-      const existing = current.find((item) => item.productId === productId);
-      if (existing) {
-        return current.map((item) =>
+    if (quantity <= 0) return;
+    const current = getSnapshot();
+    const existing = current.find((item) => item.productId === productId);
+    const next = existing
+      ? current.map((item) =>
           item.productId === productId
             ? { ...item, quantity: item.quantity + quantity }
             : item,
-        );
-      }
-      return [
-        ...current,
-        { productId, quantity, addedAt: new Date().toISOString() },
-      ];
-    });
+        )
+      : [...current, { productId, quantity, addedAt: new Date().toISOString() }];
+    writeCart(next);
   }, []);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
-    setItems((current) => {
-      if (quantity <= 0) {
-        return current.filter((item) => item.productId !== productId);
-      }
-      return current.map((item) =>
-        item.productId === productId ? { ...item, quantity } : item,
-      );
-    });
+    const current = getSnapshot();
+    const next =
+      quantity <= 0
+        ? current.filter((item) => item.productId !== productId)
+        : current.map((item) =>
+            item.productId === productId ? { ...item, quantity } : item,
+          );
+    writeCart(next);
   }, []);
 
   const removeItem = useCallback((productId: string) => {
-    setItems((current) => current.filter((item) => item.productId !== productId));
+    writeCart(getSnapshot().filter((item) => item.productId !== productId));
   }, []);
 
   const clear = useCallback(() => {
-    setItems([]);
+    writeCart([]);
   }, []);
 
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
