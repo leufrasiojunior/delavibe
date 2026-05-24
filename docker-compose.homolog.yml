@@ -81,8 +81,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    expose:
-      - "3000"
+    ports:
+      - "${APP_HOST_PORT:-3011}:3000"
 
 volumes:
   postgres_data:
