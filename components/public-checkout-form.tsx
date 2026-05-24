@@ -12,6 +12,7 @@ import { type CustomerAddressDto } from "@/lib/schemas/customer-address";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { webOrderSchema } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
+import { ViaCepError, fetchAddressByCep, normalizeCepDigits } from "@/lib/utils/viacep";
 
 const POLICY_VERSION = "1.0-2026-05";
 
@@ -73,12 +74,56 @@ export function PublicCheckoutForm({
   const [consentData, setConsentData] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLookingUpCep, setIsLookingUpCep] = useState(false);
+  const [cepLookupError, setCepLookupError] = useState<string | null>(null);
+  const [cepAutoFilled, setCepAutoFilled] = useState(false);
 
   useEffect(() => {
     if (isHydrated && items.length === 0) {
       router.replace("/carrinho");
     }
   }, [isHydrated, items.length, router]);
+
+  useEffect(() => {
+    if (deliveryMode !== DeliveryMode.DELIVERY) return;
+    if (selectedAddressId) return; // usando endereço cadastrado, não busca
+
+    const digits = normalizeCepDigits(addressDraft.zip);
+    if (digits.length !== 8) {
+      setCepLookupError(null);
+      setCepAutoFilled(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsLookingUpCep(true);
+    setCepLookupError(null);
+
+    fetchAddressByCep(digits, { signal: controller.signal })
+      .then((result) => {
+        setAddressDraft((current) => ({
+          ...current,
+          street: result.street || current.street,
+          neighborhood: result.neighborhood || current.neighborhood,
+          city: result.city,
+          state: result.state,
+          complement: current.complement || result.complement,
+        }));
+        setCepAutoFilled(true);
+      })
+      .catch((caught: unknown) => {
+        if ((caught as { name?: string } | null)?.name === "AbortError") return;
+        const message =
+          caught instanceof ViaCepError || caught instanceof Error
+            ? caught.message
+            : "Falha ao buscar CEP.";
+        setCepLookupError(message);
+        setCepAutoFilled(false);
+      })
+      .finally(() => setIsLookingUpCep(false));
+
+    return () => controller.abort();
+  }, [addressDraft.zip, deliveryMode, selectedAddressId]);
 
   const total = useMemo(
     () =>
@@ -292,70 +337,79 @@ export function PublicCheckoutForm({
             ) : null}
 
             {(!customer || addresses.length === 0 || !selectedAddressId) ? (
-              <div className="field-grid">
+              <div className="stack">
                 <label className="field">
-                  <span>Rua</span>
-                  <input
-                    value={addressDraft.street}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, street: event.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Número</span>
-                  <input
-                    value={addressDraft.number}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, number: event.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Complemento</span>
-                  <input
-                    value={addressDraft.complement}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, complement: event.target.value }))}
-                  />
-                </label>
-                <label className="field">
-                  <span>Bairro</span>
-                  <input
-                    value={addressDraft.neighborhood}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, neighborhood: event.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Cidade</span>
-                  <input
-                    value={addressDraft.city}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, city: event.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>UF</span>
-                  <input
-                    value={addressDraft.state}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
-                    maxLength={2}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>CEP</span>
+                  <span>
+                    CEP
+                    {isLookingUpCep ? <em className="muted"> · buscando...</em> : null}
+                  </span>
                   <input
                     value={addressDraft.zip}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, zip: event.target.value }))}
+                    onChange={(event) =>
+                      setAddressDraft((current) => ({ ...current, zip: event.target.value }))
+                    }
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    placeholder="00000-000"
                     required
                   />
+                  {cepLookupError ? (
+                    <small className="form-error compact">{cepLookupError}</small>
+                  ) : cepAutoFilled ? (
+                    <small className="muted">
+                      Endereço preenchido automaticamente. Você pode editar rua, bairro, número e complemento.
+                    </small>
+                  ) : null}
                 </label>
-                <label className="field">
-                  <span>Ponto de referência</span>
-                  <input
-                    value={addressDraft.reference}
-                    onChange={(event) => setAddressDraft((current) => ({ ...current, reference: event.target.value }))}
-                  />
-                </label>
+
+                <div className="field-grid">
+                  <label className="field">
+                    <span>Rua</span>
+                    <input
+                      value={addressDraft.street}
+                      onChange={(event) => setAddressDraft((current) => ({ ...current, street: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Número</span>
+                    <input
+                      value={addressDraft.number}
+                      onChange={(event) => setAddressDraft((current) => ({ ...current, number: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Complemento</span>
+                    <input
+                      value={addressDraft.complement}
+                      onChange={(event) => setAddressDraft((current) => ({ ...current, complement: event.target.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Bairro</span>
+                    <input
+                      value={addressDraft.neighborhood}
+                      onChange={(event) => setAddressDraft((current) => ({ ...current, neighborhood: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Cidade</span>
+                    <input value={addressDraft.city} readOnly required tabIndex={-1} />
+                  </label>
+                  <label className="field">
+                    <span>UF</span>
+                    <input value={addressDraft.state} readOnly required tabIndex={-1} maxLength={2} />
+                  </label>
+                  <label className="field">
+                    <span>Ponto de referência</span>
+                    <input
+                      value={addressDraft.reference}
+                      onChange={(event) => setAddressDraft((current) => ({ ...current, reference: event.target.value }))}
+                    />
+                  </label>
+                </div>
               </div>
             ) : null}
           </div>

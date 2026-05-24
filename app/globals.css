@@ -305,6 +305,16 @@ button {
   color: var(--text);
 }
 
+.field input[readonly] {
+  background: rgba(244, 182, 79, 0.08);
+  cursor: not-allowed;
+  color: var(--magenta-deep);
+}
+
+.field small {
+  font-size: 0.82rem;
+}
+
 .checkbox-field {
   display: inline-flex;
   align-items: center;
