@@ -17,6 +17,7 @@ import {
   formatCurrencyInput,
   parseCurrencyInputToCents,
 } from "@/lib/utils/money";
+import { useToast } from "@/components/toast";
 
 type CommandaBoardProps = {
   commandas: CommandaDto[];
@@ -114,8 +115,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, string>>({});
   const [itemQuantityDrafts, setItemQuantityDrafts] = useState<Record<string, string>>({});
   const [pendingItemIds, setPendingItemIds] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [payments, setPayments] = useState<PaymentDraft[]>([createPaymentDraft()]);
   const [isPending, startTransition] = useTransition();
 
@@ -302,12 +302,13 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
   }
 
   function withHandledAction(action: () => Promise<void>) {
-    setFeedback(null);
-    setError(null);
-
     startTransition(() => {
       void action().catch((caughtError: unknown) => {
-        setError(caughtError instanceof Error ? caughtError.message : "Nao foi possivel concluir a operacao.");
+        const message =
+          caughtError instanceof Error && caughtError.message
+            ? caughtError.message
+            : "Não foi possível concluir a operação.";
+        toast.error(message);
       });
     });
   }
@@ -383,7 +384,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
 
     withHandledAction(async () => {
       const created = await createCommanda();
-      setFeedback(`Comanda #${created.number} criada e pronta para atendimento.`);
+      toast.success(`Comanda #${created.number} criada e pronta para atendimento.`);
     });
   }
 
@@ -395,7 +396,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         customerName: nextCustomerName,
         notes: null,
       });
-      setFeedback(`Comanda #${created.number} aberta para ${getCommandaCustomerLabel(created.customerName)}.`);
+      toast.success(`Comanda #${created.number} aberta para ${getCommandaCustomerLabel(created.customerName)}.`);
     });
   }
 
@@ -410,8 +411,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
     const currentName = selectedComanda.customerName?.trim() ?? "";
 
     if (nextName === currentName) {
-      setFeedback("O nome da comanda ja esta atualizado.");
-      setError(null);
+      toast.info("O nome da comanda já está atualizado.");
       return;
     }
 
@@ -427,10 +427,10 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         commandaSchema,
       );
 
-      setFeedback(
+      toast.success(
         updated.customerName
           ? `Comanda #${updated.number} atualizada para ${updated.customerName}.`
-          : `Comanda #${updated.number} ficou sem identificacao.`,
+          : `Comanda #${updated.number} ficou sem identificação.`,
       );
       mergeCommanda(updated);
     });
@@ -438,8 +438,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
 
   function handleAddItem(product: ProductDto) {
     if (selectedComanda && selectedComanda.status !== "open") {
-      setFeedback(null);
-      setError("Reabra a comanda selecionada ou escolha uma comanda aberta antes de adicionar itens.");
+      toast.error("Reabra a comanda selecionada ou escolha uma comanda aberta antes de adicionar itens.");
       return;
     }
 
@@ -462,11 +461,11 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       mergeCommanda(response.commanda);
 
       if (!selectedComanda) {
-        setFeedback(`Comanda #${response.commanda.number} aberta automaticamente e item adicionado.`);
+        toast.success(`Comanda #${response.commanda.number} aberta automaticamente e item adicionado.`);
       } else if (response.warning) {
-        setFeedback(response.warning);
+        toast.info(response.warning);
       } else {
-        setFeedback(`Quantidade de ${product.name} atualizada na comanda #${response.commanda.number}.`);
+        toast.success(`Quantidade de ${product.name} atualizada na comanda #${response.commanda.number}.`);
       }
     });
   }
@@ -481,8 +480,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
 
     if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
       setCommandaItemDraft(item.id, String(item.quantity));
-      setFeedback(null);
-      setError("A quantidade do item deve ser maior que zero.");
+      toast.error("A quantidade do item deve ser maior que zero.");
       return;
     }
 
@@ -508,9 +506,9 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         );
 
         if (response.warning) {
-          setFeedback(response.warning);
+          toast.info(response.warning);
         } else {
-          setFeedback(`Quantidade de ${item.productName} atualizada na comanda #${response.commanda.number}.`);
+          toast.success(`Quantidade de ${item.productName} atualizada na comanda #${response.commanda.number}.`);
         }
         mergeCommanda(response.commanda);
       } finally {
@@ -533,7 +531,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
           { method: "DELETE" },
           commandaMutationResponseSchema,
         );
-        setFeedback("Item removido e estoque recomposto.");
+        toast.success("Item removido e estoque recomposto.");
         mergeCommanda(response.commanda);
       } finally {
         markItemPending(itemId, false);
@@ -552,7 +550,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         { method: "POST" },
         commandaMutationResponseSchema,
       );
-      setFeedback("Comanda cancelada com reversao do estoque.");
+      toast.success("Comanda cancelada com reversão do estoque.");
       mergeCommanda(response.commanda);
     });
   }
@@ -572,7 +570,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       setActiveCatalogCommandaTab("open");
       setActiveManagementCommandaTab("open");
       setSelectedComandaId(response.commanda.id);
-      setFeedback(`Comanda #${response.commanda.number} reaberta. Os pagamentos anteriores foram removidos.`);
+      toast.success(`Comanda #${response.commanda.number} reaberta. Os pagamentos anteriores foram removidos.`);
       mergeCommanda(response.commanda);
     });
   }
@@ -583,17 +581,17 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
     }
 
     if (paymentSummary.preparedPayments.length === 0) {
-      setError("Informe ao menos uma forma de pagamento com valor.");
+      toast.error("Informe ao menos uma forma de pagamento com valor.");
       return;
     }
 
     if (paymentSummary.invalidAmount) {
-      setError("Revise os valores informados nas formas de pagamento.");
+      toast.error("Revise os valores informados nas formas de pagamento.");
       return;
     }
 
     if (paymentSummary.totalCents !== selectedComanda.totalCents) {
-      setError(`A soma dos pagamentos precisa fechar em ${formatCurrency(selectedComanda.totalCents)}.`);
+      toast.error(`A soma dos pagamentos precisa fechar em ${formatCurrency(selectedComanda.totalCents)}.`);
       return;
     }
 
@@ -615,7 +613,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
       setActiveCatalogCommandaTab("closed");
       setActiveManagementCommandaTab("closed");
       setSelectedComandaId(response.commanda.id);
-      setFeedback("Venda fechada e pagamentos registrados.");
+      toast.success("Venda fechada e pagamentos registrados.");
       mergeCommanda(response.commanda);
     });
   }
@@ -901,8 +899,6 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
 
   return (
     <div className="commanda-layout">
-      {feedback ? <p className="form-success">{feedback}</p> : null}
-      {error ? <p className="form-error">{error}</p> : null}
 
       <div className="commanda-main-tabs" role="tablist" aria-label="Modos da tela de comandas">
         <button

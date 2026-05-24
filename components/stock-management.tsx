@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api/client";
 import type { ProductDto } from "@/lib/schemas/product";
 import { stockMovementSchema, type StockMovementDto } from "@/lib/schemas/stock";
 import { formatCurrency } from "@/lib/utils/money";
+import { useToast } from "@/components/toast";
 
 type StockManagementProps = {
   products: ProductDto[];
@@ -27,8 +28,7 @@ export function StockManagement({ products, movements, canAdjust }: StockManagem
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
 
   const selectedProduct = useMemo(
@@ -58,9 +58,6 @@ export function StockManagement({ products, movements, canAdjust }: StockManagem
       return;
     }
 
-    setFeedback(null);
-    setError(null);
-
     startTransition(() => {
       void apiFetch(
         "/api/stock/movements",
@@ -76,13 +73,17 @@ export function StockManagement({ products, movements, canAdjust }: StockManagem
         stockMovementSchema,
       )
         .then(() => {
-          setFeedback("Movimentação registrada.");
+          toast.success("Movimentação registrada.");
           setQuantity("1");
           setNotes("");
           router.refresh();
         })
         .catch((caughtError: unknown) => {
-          setError(caughtError instanceof Error ? caughtError.message : "Falha ao registrar a movimentação.");
+          const message =
+            caughtError instanceof Error && caughtError.message
+              ? caughtError.message
+              : "Falha ao registrar a movimentação.";
+          toast.error(message);
         });
     });
   }
@@ -147,8 +148,6 @@ export function StockManagement({ products, movements, canAdjust }: StockManagem
               </p>
             ) : null}
 
-            {feedback ? <p className="form-success">{feedback}</p> : null}
-            {error ? <p className="form-error">{error}</p> : null}
 
             <button className="button button-primary" type="submit" disabled={isPending || !productId}>
               {isPending ? "Registrando..." : "Registrar movimentação"}

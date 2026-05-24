@@ -15,6 +15,7 @@ import {
 } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
 import { formatTimeAgo } from "@/lib/utils/date";
+import { useToast } from "@/components/toast";
 
 const POLL_INTERVAL_MS = 30_000;
 const NEW_HIGHLIGHT_MS = 10_000;
@@ -87,11 +88,11 @@ export function WebOrdersBoard({
 }: WebOrdersBoardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [items, setItems] = useState<WebOrderDto[]>(initialItems);
   const [total, setTotal] = useState<number>(initialTotal);
   const [isFetching, setIsFetching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [mountedClientTime, setMountedClientTime] = useState<Date | null>(null);
 
@@ -112,7 +113,6 @@ export function WebOrdersBoard({
 
       inFlightRef.current = true;
       setIsFetching(true);
-      setError(null);
 
       try {
         const params = buildSearchParamsFromFilters(next);
@@ -154,13 +154,17 @@ export function WebOrdersBoard({
           }, NEW_HIGHLIGHT_MS);
         }
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Falha ao atualizar pedidos.");
+        const message =
+          caught instanceof Error && caught.message
+            ? caught.message
+            : "Falha ao atualizar pedidos.";
+        toast.error(message);
       } finally {
         inFlightRef.current = false;
         setIsFetching(false);
       }
     },
-    [],
+    [toast],
   );
 
   useEffect(() => {
@@ -295,7 +299,6 @@ export function WebOrdersBoard({
           />
         </div>
 
-        {error ? <p className="form-error compact">{error}</p> : null}
 
         {items.length === 0 ? (
           <p className="muted">
