@@ -14,6 +14,8 @@ import {
 
 type SupportState = "checking" | "unsupported" | "denied" | "default" | "active";
 
+const AUTO_PROMPT_SESSION_KEY = "dela-push-auto-prompt-attempted";
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -104,6 +106,20 @@ export function PushNotificationToggle() {
       setIsBusy(false);
     }
   }, [toast]);
+
+  // Auto-solicita permissao na primeira visita admin se ainda nao decidida.
+  // Guard via sessionStorage para nao reprompar entre navegacoes na mesma sessao.
+  useEffect(() => {
+    if (state !== "default") return;
+    if (typeof window === "undefined") return;
+    try {
+      if (sessionStorage.getItem(AUTO_PROMPT_SESSION_KEY)) return;
+      sessionStorage.setItem(AUTO_PROMPT_SESSION_KEY, "1");
+    } catch {
+      // sessionStorage indisponivel — segue sem guard
+    }
+    void enable();
+  }, [state, enable]);
 
   const disable = useCallback(async () => {
     setIsBusy(true);
