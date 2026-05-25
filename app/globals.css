@@ -2537,11 +2537,17 @@ button {
 
 /* ===== Payment modal ===== */
 
-.payment-methods-grid {
+.payment-breakdown-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 0.5rem;
   margin: 0.75rem 0;
+}
+
+.payment-breakdown-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .payment-method-option {
@@ -2561,6 +2567,55 @@ button {
   border-color: var(--magenta);
   background: rgba(201, 47, 136, 0.08);
   color: var(--magenta-deep);
+}
+
+.payment-amount-input {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: white;
+  font-weight: 600;
+  text-align: right;
+}
+
+.payment-amount-input:disabled {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.payment-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  margin-top: 0.25rem;
+}
+
+.payment-summary.ok {
+  background: rgba(34, 130, 102, 0.12);
+  color: var(--success);
+}
+
+.payment-summary.mismatch {
+  background: rgba(192, 57, 79, 0.1);
+  color: var(--danger);
+}
+
+.web-order-payments ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.web-order-payments li {
+  margin: 0.15rem 0;
+}
+
+@media (max-width: 600px) {
+  .payment-breakdown-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== Push toggle ===== */

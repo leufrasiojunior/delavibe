@@ -37,6 +37,9 @@ const webOrderInclude = {
     orderBy: { createdAt: "asc" as const },
     include: { actor: true },
   },
+  payments: {
+    orderBy: { createdAt: "asc" as const },
+  },
 };
 
 type WebOrderWithRelations = Prisma.WebOrderGetPayload<{
@@ -93,7 +96,12 @@ function toWebOrderDto(order: WebOrderWithRelations): WebOrderDto {
     addressReference: order.addressReference,
     items: order.items.map(toItemDto),
     statusLogs: order.statusLogs.map(toStatusLogDto),
-    paidMethods: order.paidMethods,
+    payments: order.payments.map((p) => ({
+      id: p.id,
+      method: p.method,
+      amountCents: p.amountCents,
+      createdAt: p.createdAt.toISOString(),
+    })),
     statusUpdatedAt: order.statusUpdatedAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -347,13 +355,15 @@ export async function getWebOrder(orderId: string): Promise<WebOrderDto | null> 
   return order ? toWebOrderDto(order) : null;
 }
 
+type WebOrderPaymentInput = { method: PaymentMethod; amountCents: number };
+
 export async function updateWebOrderStatus(
   orderId: string,
   toStatus: WebOrderStatus,
   actorUserId: string,
   ipAddress: string,
   notes?: string | null,
-  paidMethods?: PaymentMethod[] | null,
+  payments?: WebOrderPaymentInput[] | null,
 ): Promise<WebOrderDto> {
   const result = await db.$transaction(async (tx) => {
     const order = await tx.webOrder.findUnique({
@@ -375,12 +385,34 @@ export async function updateWebOrderStatus(
       );
     }
 
-    if (toStatus === WebOrderStatus.PAID && (!paidMethods || paidMethods.length === 0)) {
-      throw new AppError(
-        400,
-        "missing_payment_methods",
-        "Informe pelo menos uma forma de pagamento.",
-      );
+    if (toStatus === WebOrderStatus.PAID) {
+      if (!payments || payments.length === 0) {
+        throw new AppError(
+          400,
+          "missing_payment_methods",
+          "Informe pelo menos uma forma de pagamento.",
+        );
+      }
+      const sum = payments.reduce((acc, p) => acc + p.amountCents, 0);
+      if (sum !== order.totalCents) {
+        throw new AppError(
+          400,
+          "payment_sum_mismatch",
+          `A soma dos pagamentos (${sum}) nao bate com o total do pedido (${order.totalCents}).`,
+          { sum, totalCents: order.totalCents },
+        );
+      }
+      const methods = new Set<string>();
+      for (const p of payments) {
+        if (methods.has(p.method)) {
+          throw new AppError(
+            400,
+            "duplicate_payment_method",
+            `Forma de pagamento '${p.method}' duplicada.`,
+          );
+        }
+        methods.add(p.method);
+      }
     }
 
     if (toStatus === WebOrderStatus.CANCELLED && cancelingRevertsStock(order.status)) {
@@ -439,8 +471,17 @@ export async function updateWebOrderStatus(
       data: {
         status: finalStatus,
         statusUpdatedAt: now,
-        ...(toStatus === WebOrderStatus.PAID && paidMethods
-          ? { paidMethods: { set: paidMethods } }
+        ...(toStatus === WebOrderStatus.PAID && payments
+          ? {
+              payments: {
+                createMany: {
+                  data: payments.map((p) => ({
+                    method: p.method,
+                    amountCents: p.amountCents,
+                  })),
+                },
+              },
+            }
           : {}),
         statusLogs: { create: statusLogsCreate },
       },
@@ -457,7 +498,7 @@ export async function updateWebOrderStatus(
     metadata: {
       toStatus,
       notes: notes ?? null,
-      paidMethods: paidMethods ?? null,
+      payments: payments ?? null,
       autoDelivered: toStatus === WebOrderStatus.PAID,
     },
   });

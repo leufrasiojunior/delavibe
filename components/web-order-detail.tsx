@@ -20,7 +20,12 @@ import {
   webOrderSchema,
   type WebOrderDto,
 } from "@/lib/schemas/web-order";
-import { formatCurrency } from "@/lib/utils/money";
+import {
+  centsToCurrencyInput,
+  formatCurrency,
+  formatCurrencyInput,
+  parseCurrencyInputToCents,
+} from "@/lib/utils/money";
 import { formatDisplayDate, formatTimeAgo } from "@/lib/utils/date";
 import { formatPhoneBr } from "@/lib/utils/strings";
 import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
@@ -93,7 +98,13 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentSelection, setPaymentSelection] = useState<PaymentMethod[]>([]);
+  const [selectedMethods, setSelectedMethods] = useState<Set<PaymentMethod>>(new Set());
+  const [paymentInputs, setPaymentInputs] = useState<Record<PaymentMethod, string>>({
+    cash: "",
+    pix: "",
+    debit: "",
+    credit: "",
+  });
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,7 +124,10 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
 
   function performTransition(
     toStatus: WebOrderStatus,
-    options?: { notes?: string; paidMethods?: PaymentMethod[] },
+    options?: {
+      notes?: string;
+      payments?: { method: PaymentMethod; amountCents: number }[];
+    },
   ) {
     startTransition(() => {
       void apiFetch(
@@ -123,7 +137,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           body: JSON.stringify({
             toStatus,
             notes: options?.notes ?? null,
-            paidMethods: options?.paidMethods ?? null,
+            payments: options?.payments ?? null,
           }),
         },
         webOrderSchema,
@@ -145,24 +159,77 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   }
 
   function openPaymentModal() {
-    setPaymentSelection([]);
+    // Pre-seleciona Dinheiro com o total — admin pode trocar/redistribuir.
+    setSelectedMethods(new Set(["cash"]));
+    setPaymentInputs({
+      cash: centsToCurrencyInput(order.totalCents),
+      pix: "",
+      debit: "",
+      credit: "",
+    });
     setPaymentError(null);
     setShowPaymentModal(true);
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
-    setPaymentSelection((current) =>
-      current.includes(method) ? current.filter((m) => m !== method) : [...current, method],
-    );
+    setPaymentError(null);
+    setSelectedMethods((currentSet) => {
+      const next = new Set(currentSet);
+      if (next.has(method)) {
+        next.delete(method);
+        setPaymentInputs((inputs) => ({ ...inputs, [method]: "" }));
+      } else {
+        next.add(method);
+        const sumOthers = Array.from(next)
+          .filter((m) => m !== method)
+          .reduce(
+            (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+            0,
+          );
+        const remaining = Math.max(0, order.totalCents - sumOthers);
+        setPaymentInputs((inputs) => ({
+          ...inputs,
+          [method]: centsToCurrencyInput(remaining),
+        }));
+      }
+      return next;
+    });
   }
 
+  function setPaymentAmount(method: PaymentMethod, raw: string) {
+    setPaymentError(null);
+    setPaymentInputs((inputs) => ({ ...inputs, [method]: formatCurrencyInput(raw) }));
+  }
+
+  const paymentSumCents = (Array.from(selectedMethods) as PaymentMethod[]).reduce(
+    (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+    0,
+  );
+  const paymentDiffCents = order.totalCents - paymentSumCents;
+
   function submitPayment() {
-    if (paymentSelection.length === 0) {
+    if (selectedMethods.size === 0) {
       setPaymentError("Selecione pelo menos uma forma de pagamento.");
       return;
     }
+    const entries: { method: PaymentMethod; amountCents: number }[] = [];
+    for (const m of Array.from(selectedMethods) as PaymentMethod[]) {
+      const cents = parseCurrencyInputToCents(paymentInputs[m]);
+      if (cents === null || cents <= 0) {
+        setPaymentError(`Informe o valor pago em ${PAYMENT_METHOD_LABELS[m]}.`);
+        return;
+      }
+      entries.push({ method: m, amountCents: cents });
+    }
+    const sum = entries.reduce((a, e) => a + e.amountCents, 0);
+    if (sum !== order.totalCents) {
+      setPaymentError(
+        `A soma (${formatCurrency(sum)}) precisa bater com o total (${formatCurrency(order.totalCents)}).`,
+      );
+      return;
+    }
     setShowPaymentModal(false);
-    performTransition(WebOrderStatus.PAID, { paidMethods: paymentSelection });
+    performTransition(WebOrderStatus.PAID, { payments: entries });
   }
 
   function handleTransitionClick(toStatus: WebOrderStatus) {
@@ -345,13 +412,17 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           <span>Total</span>
           <strong>{formatCurrency(order.totalCents)}</strong>
         </div>
-        {order.paidMethods.length > 0 ? (
-          <p className="muted">
-            Pagamento:{" "}
-            <strong>
-              {order.paidMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(", ")}
-            </strong>
-          </p>
+        {order.payments.length > 0 ? (
+          <div className="web-order-payments">
+            <strong>Pagamento:</strong>
+            <ul>
+              {order.payments.map((p) => (
+                <li key={p.id}>
+                  {PAYMENT_METHOD_LABELS[p.method]}: {formatCurrency(p.amountCents)}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
         {order.notes ? <p className="muted">Notas do cliente: {order.notes}</p> : null}
       </section>
@@ -409,18 +480,49 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
         title="Marcar como pago"
         size="sm"
       >
-        <p className="muted">Selecione uma ou mais formas de pagamento usadas:</p>
-        <div className="payment-methods-grid">
-          {PAYMENT_METHOD_ORDER.map((method) => (
-            <label key={method} className="payment-method-option">
-              <input
-                type="checkbox"
-                checked={paymentSelection.includes(method)}
-                onChange={() => togglePaymentMethod(method)}
-              />
-              <span>{PAYMENT_METHOD_LABELS[method]}</span>
-            </label>
-          ))}
+        <p className="muted">
+          Selecione as formas de pagamento e os valores. A soma precisa fechar com o total do
+          pedido (<strong>{formatCurrency(order.totalCents)}</strong>).
+        </p>
+        <div className="payment-breakdown-grid">
+          {PAYMENT_METHOD_ORDER.map((method) => {
+            const isChecked = selectedMethods.has(method);
+            return (
+              <div key={method} className="payment-breakdown-row">
+                <label className="payment-method-option">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => togglePaymentMethod(method)}
+                  />
+                  <span>{PAYMENT_METHOD_LABELS[method]}</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="payment-amount-input"
+                  placeholder="R$ 0,00"
+                  value={paymentInputs[method]}
+                  onChange={(event) => setPaymentAmount(method, event.target.value)}
+                  disabled={!isChecked}
+                  aria-label={`Valor pago em ${PAYMENT_METHOD_LABELS[method]}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className={`payment-summary ${paymentDiffCents === 0 ? "ok" : "mismatch"}`}>
+          <span>
+            Soma: <strong>{formatCurrency(paymentSumCents)}</strong> /{" "}
+            {formatCurrency(order.totalCents)}
+          </span>
+          {paymentDiffCents !== 0 ? (
+            <span className="muted small">
+              {paymentDiffCents > 0
+                ? `Faltam ${formatCurrency(paymentDiffCents)}`
+                : `Sobra ${formatCurrency(Math.abs(paymentDiffCents))}`}
+            </span>
+          ) : null}
         </div>
         <p className="muted small">
           Ao confirmar, o pedido sera marcado como <strong>Pago</strong> e em seguida{" "}
@@ -439,7 +541,9 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
             type="button"
             className="button button-primary compact"
             onClick={submitPayment}
-            disabled={paymentSelection.length === 0 || isPending}
+            disabled={
+              selectedMethods.size === 0 || paymentDiffCents !== 0 || isPending
+            }
           >
             <CircleDollarSign size={14} aria-hidden />
             Confirmar pagamento

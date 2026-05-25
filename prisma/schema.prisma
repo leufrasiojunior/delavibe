@@ -300,7 +300,7 @@ model WebOrder {
   addressReference    String?
   items               WebOrderItem[]
   statusLogs          WebOrderStatusLog[]
-  paidMethods         PaymentMethod[]     @default([])
+  payments            WebOrderPayment[]
   statusUpdatedAt     DateTime            @default(now())
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -338,4 +338,16 @@ model WebOrderStatusLog {
   createdAt   DateTime                @default(now())
 
   @@index([webOrderId, createdAt])
+}
+
+model WebOrderPayment {
+  id          String        @id @default(cuid())
+  webOrderId  String
+  webOrder    WebOrder      @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
+  method      PaymentMethod
+  amountCents Int
+  createdAt   DateTime      @default(now())
+
+  @@index([webOrderId])
+  @@index([method])
 }

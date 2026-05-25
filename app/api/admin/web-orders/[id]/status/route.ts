@@ -32,7 +32,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         session!.user.id,
         ipAddress,
         payload.notes ?? null,
-        payload.paidMethods ?? null,
+        payload.payments ?? null,
       );
 
       return ok(webOrderSchema.parse(order), requestId);

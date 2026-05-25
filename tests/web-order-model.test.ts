@@ -177,30 +177,54 @@ test("webOrderStatusTransitionSchema aceita notes: null em transição não-canc
   assert.equal(parsed.notes, null);
 });
 
-test("webOrderStatusTransitionSchema exige paidMethods ao marcar como pago", async () => {
+test("webOrderStatusTransitionSchema exige payments ao marcar como pago", async () => {
   await assert.rejects(
     webOrderStatusTransitionSchema.parseAsync({ toStatus: WebOrderStatus.PAID }),
   );
   await assert.rejects(
     webOrderStatusTransitionSchema.parseAsync({
       toStatus: WebOrderStatus.PAID,
-      paidMethods: [],
+      payments: [],
     }),
   );
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
     toStatus: WebOrderStatus.PAID,
-    paidMethods: ["cash"],
+    payments: [{ method: "cash", amountCents: 5000 }],
   });
   assert.equal(parsed.toStatus, WebOrderStatus.PAID);
-  assert.deepEqual(parsed.paidMethods, ["cash"]);
+  assert.deepEqual(parsed.payments, [{ method: "cash", amountCents: 5000 }]);
 });
 
-test("webOrderStatusTransitionSchema aceita paidMethods com varias formas", async () => {
+test("webOrderStatusTransitionSchema aceita varias formas com valores", async () => {
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
     toStatus: WebOrderStatus.PAID,
-    paidMethods: ["cash", "pix"],
+    payments: [
+      { method: "cash", amountCents: 3000 },
+      { method: "pix", amountCents: 2000 },
+    ],
   });
-  assert.deepEqual(parsed.paidMethods, ["cash", "pix"]);
+  assert.equal(parsed.payments?.length, 2);
+});
+
+test("webOrderStatusTransitionSchema rejeita forma de pagamento duplicada", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      payments: [
+        { method: "cash", amountCents: 1000 },
+        { method: "cash", amountCents: 500 },
+      ],
+    }),
+  );
+});
+
+test("webOrderStatusTransitionSchema rejeita amountCents <= 0", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      payments: [{ method: "cash", amountCents: 0 }],
+    }),
+  );
 });
 
 test("webOrderCreateInputSchema exige pelo menos um item", async () => {

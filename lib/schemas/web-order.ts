@@ -93,11 +93,19 @@ export const webOrderPublicCreateInputSchema = z
     }
   });
 
+export const webOrderPaymentInputSchema = z.object({
+  method: paymentMethodSchema,
+  amountCents: z
+    .number()
+    .int("O valor deve ser inteiro (centavos).")
+    .min(1, "O valor deve ser maior que zero."),
+});
+
 export const webOrderStatusTransitionSchema = z
   .object({
     toStatus: webOrderStatusSchema,
     notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").nullish(),
-    paidMethods: z.array(paymentMethodSchema).nullish(),
+    payments: z.array(webOrderPaymentInputSchema).nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.toStatus === WebOrderStatus.CANCELLED) {
@@ -111,13 +119,26 @@ export const webOrderStatusTransitionSchema = z
       }
     }
     if (data.toStatus === WebOrderStatus.PAID) {
-      const methods = data.paidMethods ?? [];
-      if (methods.length === 0) {
+      const payments = data.payments ?? [];
+      if (payments.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["paidMethods"],
+          path: ["payments"],
           message: "Informe pelo menos uma forma de pagamento.",
         });
+        return;
+      }
+      const methods = new Set<string>();
+      for (let i = 0; i < payments.length; i += 1) {
+        const p = payments[i];
+        if (methods.has(p.method)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payments", i, "method"],
+            message: `Forma de pagamento '${p.method}' duplicada.`,
+          });
+        }
+        methods.add(p.method);
       }
     }
   });
@@ -232,7 +253,14 @@ export const webOrderSchema = z.object({
   addressReference: z.string().nullable(),
   items: z.array(webOrderItemSchema),
   statusLogs: z.array(webOrderStatusLogSchema),
-  paidMethods: z.array(paymentMethodSchema),
+  payments: z.array(
+    z.object({
+      id: z.string(),
+      method: paymentMethodSchema,
+      amountCents: z.number().int(),
+      createdAt: z.string(),
+    }),
+  ),
   statusUpdatedAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -240,6 +268,7 @@ export const webOrderSchema = z.object({
 
 export type WebOrderCreateInput = z.infer<typeof webOrderCreateInputSchema>;
 export type WebOrderStatusTransition = z.infer<typeof webOrderStatusTransitionSchema>;
+export type WebOrderPaymentInput = z.infer<typeof webOrderPaymentInputSchema>;
 export type WebOrderListFilters = z.infer<typeof webOrderListFiltersSchema>;
 export type WebOrderDto = z.infer<typeof webOrderSchema>;
 export type WebOrderItemDto = z.infer<typeof webOrderItemSchema>;
