@@ -2089,6 +2089,130 @@ button {
   gap: 1.5rem;
 }
 
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "step1 step3"
+    "step2 step3";
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.checkout-step--1 { grid-area: step1; }
+.checkout-step--2 { grid-area: step2; }
+.checkout-step--3 { grid-area: step3; }
+
+@media (max-width: 960px) {
+  .checkout-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "step1"
+      "step2"
+      "step3";
+  }
+}
+
+.link-button {
+  display: inline;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--magenta-deep);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 12, 24, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+  overscroll-behavior: contain;
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius);
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content--sm { width: 360px; }
+.modal-content--md { width: 540px; }
+.modal-content--lg { width: 720px; }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: rgba(201, 47, 136, 0.06);
+  color: var(--magenta-deep);
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: rgba(201, 47, 136, 0.14);
+}
+
+.modal-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0;
+  }
+  .modal-content,
+  .modal-content--sm,
+  .modal-content--md,
+  .modal-content--lg {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+.privacy-policy section {
+  margin-top: 1rem;
+}
+
+.privacy-policy h3 {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
 .public-checkout-block {
   display: grid;
   gap: 1rem;
@@ -2139,6 +2263,33 @@ button {
   justify-content: space-between;
 }
 
+.public-checkout-summary-row {
+  display: grid !important;
+  grid-template-columns: 48px minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.public-checkout-summary-info {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.public-checkout-summary-info strong {
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.public-checkout-summary-total {
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* ===== Confirmação ===== */
 
 .public-confirmation {
@@ -2146,7 +2297,8 @@ button {
   gap: 1.25rem;
 }
 
-.public-confirmation-header {
+.public-confirmation-header,
+.public-confirmation-hero {
   display: grid;
   gap: 0.55rem;
   justify-items: center;
@@ -2157,14 +2309,32 @@ button {
   border: 1px solid rgba(34, 130, 102, 0.25);
 }
 
-.public-confirmation-header h1 {
+.public-confirmation-header h1,
+.public-confirmation-hero h1 {
   margin: 0;
   font-size: 1.55rem;
   line-height: 1.15;
 }
 
+.public-confirmation-hero h1 {
+  font-size: 2.25rem;
+}
+
+.public-confirmation-greeting {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--magenta-deep);
+  font-weight: 600;
+}
+
 .public-confirmation-header p {
   margin: 0;
+}
+
+@media (max-width: 600px) {
+  .public-confirmation-hero h1 {
+    font-size: 1.75rem;
+  }
 }
 
 .public-confirmation-check {
