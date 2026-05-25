@@ -195,7 +195,14 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           if (selectedFile) {
             try {
               await uploadImageForProduct(savedProduct.id, selectedFile);
-              toast.success("Imagem enviada com sucesso.");
+              toast.success(
+                form.id
+                  ? "Produto atualizado e imagem enviada com sucesso."
+                  : "Produto cadastrado e imagem enviada com sucesso.",
+              );
+              resetForm();
+              router.refresh();
+              return;
             } catch (uploadError: unknown) {
               const message =
                 uploadError instanceof Error
