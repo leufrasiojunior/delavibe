@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Eye, History, ListChecks, RefreshCw } from "lucide-react";
 
 import { WebOrderStatus } from "@prisma/client";
 
@@ -255,6 +256,7 @@ export function WebOrdersBoard({
           </div>
           <div className="button-row">
             <button className="button button-secondary compact" type="button" onClick={refreshNow} disabled={isFetching}>
+              <RefreshCw size={14} aria-hidden className={isFetching ? "spin" : undefined} />
               {isFetching ? "Atualizando..." : "Atualizar"}
             </button>
           </div>
@@ -267,6 +269,7 @@ export function WebOrdersBoard({
               className={filters.tab === "active" ? "tab active" : "tab"}
               onClick={() => handleTabChange("active")}
             >
+              <ListChecks size={14} aria-hidden />
               Ativos
             </button>
             <button
@@ -274,6 +277,7 @@ export function WebOrdersBoard({
               className={filters.tab === "history" ? "tab active" : "tab"}
               onClick={() => handleTabChange("history")}
             >
+              <History size={14} aria-hidden />
               Histórico
             </button>
           </div>
@@ -332,6 +336,7 @@ export function WebOrdersBoard({
                     </p>
                   </div>
                   <Link className="button button-secondary compact" href={`/admin/pedidos-web/${order.id}`}>
+                    <Eye size={14} aria-hidden />
                     Ver detalhe
                   </Link>
                 </li>

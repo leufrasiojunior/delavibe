@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
@@ -34,7 +35,10 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
       <section className="public-empty">
         <h1>Seu carrinho está vazio</h1>
         <p className="muted">Adicione produtos no cardápio para continuar.</p>
-        <Link href="/" className="button button-primary compact">Voltar ao cardápio</Link>
+        <Link href="/" className="button button-primary compact">
+          <ArrowLeft size={14} aria-hidden />
+          Voltar ao cardápio
+        </Link>
       </section>
     );
   }
@@ -72,6 +76,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                   type="button"
                   onClick={() => removeItem(item.productId)}
                 >
+                  <Trash2 size={14} aria-hidden />
                   Remover
                 </button>
               </li>
@@ -91,7 +96,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                     aria-label="Diminuir quantidade"
                     onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                   >
-                    −
+                    <Minus size={14} aria-hidden />
                   </button>
                   <input
                     type="number"
@@ -106,7 +111,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                     aria-label="Aumentar quantidade"
                     onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                   >
-                    +
+                    <Plus size={14} aria-hidden />
                   </button>
                 </div>
                 <button
@@ -114,6 +119,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                   type="button"
                   onClick={() => removeItem(item.productId)}
                 >
+                  <Trash2 size={14} aria-hidden />
                   Remover
                 </button>
               </div>
@@ -129,11 +135,19 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
       </div>
 
       <div className="button-row">
-        <Link href="/" className="button button-secondary compact">Continuar comprando</Link>
+        <Link href="/" className="button button-secondary compact">
+          <ArrowLeft size={14} aria-hidden />
+          Continuar comprando
+        </Link>
         <button type="button" className="button button-secondary compact" onClick={handleClear}>
+          <Trash2 size={14} aria-hidden />
           Esvaziar carrinho
         </button>
-        <Link href="/checkout" className="button button-primary">Finalizar pedido</Link>
+        <Link href="/checkout" className="button button-primary">
+          <ShoppingCart size={16} aria-hidden />
+          Finalizar pedido
+          <ArrowRight size={14} aria-hidden />
+        </Link>
       </div>
     </section>
   );

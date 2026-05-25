@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
+import { LogIn, LogOut, ShoppingCart, UserPlus } from "lucide-react";
 
 import { apiFetch } from "@/lib/api/client";
 import { useCart } from "@/lib/hooks/use-cart";
@@ -56,6 +57,7 @@ export function PublicShell({ customer, children }: PublicShellProps) {
 
           <nav className="public-header-actions">
             <Link href="/carrinho" className="public-cart-link" aria-label="Abrir carrinho">
+              <ShoppingCart size={16} aria-hidden />
               <span>Carrinho</span>
               <span className="public-cart-badge" data-empty={cartBadgeCount === 0}>
                 {cartBadgeCount}
@@ -71,15 +73,18 @@ export function PublicShell({ customer, children }: PublicShellProps) {
                   onClick={handleLogout}
                   disabled={isPending}
                 >
+                  <LogOut size={14} aria-hidden />
                   {isPending ? "Saindo..." : "Sair"}
                 </button>
               </div>
             ) : (
               <div className="public-header-auth">
                 <Link href="/entrar" className="button button-secondary compact">
+                  <LogIn size={14} aria-hidden />
                   Entrar
                 </Link>
                 <Link href="/criar-conta" className="button button-primary compact">
+                  <UserPlus size={14} aria-hidden />
                   Criar conta
                 </Link>
               </div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AlertTriangle, ArrowLeft, Ban, ShoppingCart } from "lucide-react";
 
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
@@ -33,7 +34,10 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
 
   return (
     <article className="public-stack">
-      <Link href="/" className="muted">← Voltar ao cardápio</Link>
+      <Link href="/" className="muted public-back-link">
+        <ArrowLeft size={14} aria-hidden />
+        Voltar ao cardápio
+      </Link>
 
       <div className="public-product-detail">
         <img
@@ -46,9 +50,19 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
           <h1>{product.name}</h1>
           <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
           {product.stockQty <= 0 ? (
-            <p><span className="badge danger">Esgotado</span></p>
+            <p>
+              <span className="badge danger">
+                <Ban size={12} aria-hidden />
+                Esgotado
+              </span>
+            </p>
           ) : product.stockQty <= product.minimumStock ? (
-            <p><span className="badge warning">Poucas unidades</span></p>
+            <p>
+              <span className="badge warning">
+                <AlertTriangle size={12} aria-hidden />
+                Poucas unidades
+              </span>
+            </p>
           ) : null}
 
           <div className="public-product-detail-controls">
@@ -63,6 +77,7 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
             </label>
 
             <button type="button" className="button button-primary" onClick={handleAdd}>
+              <ShoppingCart size={16} aria-hidden />
               Adicionar ao carrinho
             </button>
           </div>

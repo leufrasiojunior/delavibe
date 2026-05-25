@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { PackagePlus } from "lucide-react";
 
 import { apiFetch } from "@/lib/api/client";
 import type { ProductDto } from "@/lib/schemas/product";
@@ -150,6 +151,7 @@ export function StockManagement({ products, movements, canAdjust }: StockManagem
 
 
             <button className="button button-primary" type="submit" disabled={isPending || !productId}>
+              <PackagePlus size={16} aria-hidden />
               {isPending ? "Registrando..." : "Registrar movimentação"}
             </button>
           </form>
