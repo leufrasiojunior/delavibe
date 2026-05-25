@@ -165,6 +165,15 @@ test("webOrderStatusTransitionSchema aceita transição não-cancelamento sem no
   assert.equal(parsed.toStatus, WebOrderStatus.PAID);
 });
 
+test("webOrderStatusTransitionSchema aceita notes: null em transição não-cancelamento", async () => {
+  const parsed = await webOrderStatusTransitionSchema.parseAsync({
+    toStatus: WebOrderStatus.PAID,
+    notes: null,
+  });
+  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.equal(parsed.notes, null);
+});
+
 test("webOrderCreateInputSchema exige pelo menos um item", async () => {
   await assert.rejects(webOrderCreateInputSchema.parseAsync({ items: [] }));
 });

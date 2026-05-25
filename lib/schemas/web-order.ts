@@ -95,7 +95,7 @@ export const webOrderPublicCreateInputSchema = z
 export const webOrderStatusTransitionSchema = z
   .object({
     toStatus: webOrderStatusSchema,
-    notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").optional(),
+    notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.toStatus === WebOrderStatus.CANCELLED) {
