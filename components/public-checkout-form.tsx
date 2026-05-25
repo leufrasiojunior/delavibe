@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { CheckCircle2 } from "lucide-react";
 
 import { DeliveryMode } from "@prisma/client";
 
@@ -502,6 +503,7 @@ export function PublicCheckoutForm({
         {error ? <p className="form-error compact">{error}</p> : null}
 
         <button type="submit" className="button button-primary" disabled={isPending}>
+          <CheckCircle2 size={16} aria-hidden />
           {isPending ? "Enviando pedido..." : "Finalizar pedido"}
         </button>
       </section>

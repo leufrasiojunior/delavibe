@@ -2,6 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  ChefHat,
+  CheckCheck,
+  CircleDollarSign,
+  PackageCheck,
+  RotateCcw,
+  XCircle,
+} from "lucide-react";
 
 import { WebOrderStatus } from "@prisma/client";
 
@@ -41,6 +49,15 @@ const TRANSITION_LABELS: Record<WebOrderStatus, string> = {
   READY: "Marcar como pronto",
   DELIVERED: "Marcar como entregue",
   CANCELLED: "Cancelar pedido",
+};
+
+const TRANSITION_ICONS: Record<WebOrderStatus, typeof RotateCcw> = {
+  PENDING_PAYMENT: RotateCcw,
+  PAID: CircleDollarSign,
+  PREPARING: ChefHat,
+  READY: PackageCheck,
+  DELIVERED: CheckCheck,
+  CANCELLED: XCircle,
 };
 
 function isAnonymized(order: WebOrderDto) {
@@ -142,17 +159,21 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           </div>
 
           <div className="button-row">
-            {nonCancelTransitions.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className="button button-primary compact"
-                onClick={() => performTransition(status)}
-                disabled={isPending}
-              >
-                {TRANSITION_LABELS[status]}
-              </button>
-            ))}
+            {nonCancelTransitions.map((status) => {
+              const Icon = TRANSITION_ICONS[status];
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  className="button button-primary compact"
+                  onClick={() => performTransition(status)}
+                  disabled={isPending}
+                >
+                  <Icon size={14} aria-hidden />
+                  {TRANSITION_LABELS[status]}
+                </button>
+              );
+            })}
             {canCancel ? (
               <button
                 type="button"
@@ -160,6 +181,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
                 onClick={openCancelDialog}
                 disabled={isPending}
               >
+                <XCircle size={14} aria-hidden />
                 Cancelar pedido
               </button>
             ) : null}
@@ -310,6 +332,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
               Voltar
             </button>
             <button type="submit" className="button button-primary compact">
+              <XCircle size={14} aria-hidden />
               Confirmar cancelamento
             </button>
           </div>

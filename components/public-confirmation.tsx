@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, Check, CheckCircle2 } from "lucide-react";
 
 import { WebOrderStatus } from "@prisma/client";
 
@@ -35,7 +36,7 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
     <section className="public-confirmation">
       <div className="public-confirmation-header">
         <div className="public-confirmation-check" aria-hidden>
-          ✓
+          <Check size={32} strokeWidth={3} />
         </div>
         <p className="eyebrow">Tudo pronto!</p>
         <h1>Recebemos o seu pedido, obrigado!</h1>
@@ -105,6 +106,7 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
 
       <div className="button-row">
         <Link href="/" className="button button-primary">
+          <ArrowLeft size={16} aria-hidden />
           Voltar ao cardápio
         </Link>
       </div>

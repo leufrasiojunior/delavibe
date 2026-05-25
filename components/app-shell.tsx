@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import {
+  BarChart3,
+  Boxes,
+  ClipboardList,
+  ExternalLink,
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+} from "lucide-react";
 
 import { LogoutButton } from "@/components/logout-button";
 import type { AuthSession } from "@/lib/auth/session";
@@ -12,14 +21,22 @@ type AppShellProps = {
   children: ReactNode;
 };
 
-const navigation = [
-  { href: "/admin/commandas", label: "Comandas" },
-  { href: "/admin/pedidos-web", label: "Pedidos web" },
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/products", label: "Produtos" },
-  { href: "/admin/stock", label: "Estoque" },
-  { href: "/admin/sales", label: "Vendas" },
-  { href: "/", label: "Ver cardápio público" },
+type NavIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+};
+
+const navigation: NavItem[] = [
+  { href: "/admin/commandas", label: "Comandas", icon: ClipboardList },
+  { href: "/admin/pedidos-web", label: "Pedidos web", icon: ShoppingBag },
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/products", label: "Produtos", icon: Package },
+  { href: "/admin/stock", label: "Estoque", icon: Boxes },
+  { href: "/admin/sales", label: "Vendas", icon: BarChart3 },
+  { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
 
 export function AppShell({ session, children }: AppShellProps) {
@@ -99,11 +116,15 @@ export function AppShell({ session, children }: AppShellProps) {
         </div>
 
         <nav className="nav-links">
-          {navigation.map((item) => (
-            <Link key={item.href} href={item.href} className="nav-link">
-              {item.label}
-            </Link>
-          ))}
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="nav-link">
+                <Icon size={18} aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
