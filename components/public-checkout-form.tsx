@@ -17,6 +17,7 @@ import { type CustomerAddressDto } from "@/lib/schemas/customer-address";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { webOrderSchema } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
+import { formatPhoneInputBr } from "@/lib/utils/strings";
 import { ViaCepError, fetchAddressByCep, normalizeCepDigits } from "@/lib/utils/viacep";
 
 const POLICY_VERSION = "1.0-2026-05";
@@ -67,7 +68,7 @@ export function PublicCheckoutForm({
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(DeliveryMode.DELIVERY);
   const [name, setName] = useState(customer?.name ?? "");
   const [email, setEmail] = useState(customer?.email ?? "");
-  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [phone, setPhone] = useState(formatPhoneInputBr(customer?.phone ?? ""));
   const [notes, setNotes] = useState("");
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id ?? null,
@@ -276,8 +277,11 @@ export function PublicCheckoutForm({
               <span>Telefone (com DDD)</span>
               <input
                 value={phone}
-                onChange={(event) => setPhone(event.target.value)}
+                onChange={(event) => setPhone(formatPhoneInputBr(event.target.value))}
                 placeholder="(11) 91234-5678"
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={16}
                 required
               />
             </label>
