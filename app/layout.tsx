@@ -14,6 +14,8 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: "Dela's Vibe PDV",
   description: "PDV local com comandas, estoque e histórico de vendas.",
+  manifest: "/manifest.json",
+  themeColor: "#c92f88",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

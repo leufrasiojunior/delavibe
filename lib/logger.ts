@@ -48,6 +48,14 @@ function serializeValue(value: unknown): unknown {
   return value;
 }
 
+function redactSecrets(input: string): string {
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+  if (vapidPrivate && vapidPrivate.length > 8 && input.includes(vapidPrivate)) {
+    return input.split(vapidPrivate).join("[REDACTED:VAPID_PRIVATE_KEY]");
+  }
+  return input;
+}
+
 function emit(level: LogLevel, message: string, context?: LogContext) {
   if (!canLog(level)) {
     return;
@@ -60,7 +68,7 @@ function emit(level: LogLevel, message: string, context?: LogContext) {
     ...(context ? (serializeValue(context) as Record<string, unknown>) : {}),
   };
 
-  const serialized = JSON.stringify(payload);
+  const serialized = redactSecrets(JSON.stringify(payload));
 
   if (level === "error") {
     console.error(serialized);

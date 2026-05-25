@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { LogoutButton } from "@/components/logout-button";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import type { AuthSession } from "@/lib/auth/session";
 
 type AppShellProps = {
@@ -182,6 +183,7 @@ export function AppShell({ session, children }: AppShellProps) {
             <strong>{session.user.name}</strong>
             <span>{session.user.role === "admin" ? "Administrador" : "Operador"}</span>
           </div>
+          <PushNotificationToggle />
           <LogoutButton />
         </div>
       </aside>
