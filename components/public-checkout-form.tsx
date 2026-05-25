@@ -7,6 +7,10 @@ import { CheckCircle2 } from "lucide-react";
 
 import { DeliveryMode } from "@prisma/client";
 
+import { Modal } from "@/components/modal";
+import { PrivacyPolicyContent } from "@/components/privacy-policy-content";
+import { ProductMedia } from "@/components/product-media";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { apiFetch } from "@/lib/api/client";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type CustomerAddressDto } from "@/lib/schemas/customer-address";
@@ -58,9 +62,9 @@ export function PublicCheckoutForm({
   productsLookup,
 }: PublicCheckoutFormProps) {
   const router = useRouter();
-  const { items, isHydrated, clear, removeItem } = useCart();
+  const { items, isHydrated, clear, removeItem, updateQuantity } = useCart();
   const [isPending, startTransition] = useTransition();
-  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(DeliveryMode.PICKUP);
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(DeliveryMode.DELIVERY);
   const [name, setName] = useState(customer?.name ?? "");
   const [email, setEmail] = useState(customer?.email ?? "");
   const [phone, setPhone] = useState(customer?.phone ?? "");
@@ -77,6 +81,8 @@ export function PublicCheckoutForm({
   const [error, setError] = useState<string | null>(null);
   const [isLookingUpCep, setIsLookingUpCep] = useState(false);
   const [cepLookupError, setCepLookupError] = useState<string | null>(null);
+  const [addressRevealed, setAddressRevealed] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   useEffect(() => {
     if (isHydrated && items.length === 0) {
@@ -108,6 +114,7 @@ export function PublicCheckoutForm({
           state: result.state,
           complement: current.complement || result.complement,
         }));
+        setAddressRevealed(true);
       })
       .catch((caught: unknown) => {
         if ((caught as { name?: string } | null)?.name === "AbortError") return;
@@ -230,40 +237,10 @@ export function PublicCheckoutForm({
         <h1>Finalizar pedido</h1>
       </header>
 
-      <section className="public-checkout-block">
-        <h2>1. Modo do pedido</h2>
-        <div className="public-delivery-options">
-          <label className="public-delivery-option">
-            <input
-              type="radio"
-              name="deliveryMode"
-              value={DeliveryMode.PICKUP}
-              checked={deliveryMode === DeliveryMode.PICKUP}
-              onChange={() => setDeliveryMode(DeliveryMode.PICKUP)}
-            />
-            <span>
-              <strong>Retirar no local</strong>
-              <span className="muted">Você passa para buscar e pagar.</span>
-            </span>
-          </label>
-          <label className="public-delivery-option">
-            <input
-              type="radio"
-              name="deliveryMode"
-              value={DeliveryMode.DELIVERY}
-              checked={deliveryMode === DeliveryMode.DELIVERY}
-              onChange={() => setDeliveryMode(DeliveryMode.DELIVERY)}
-            />
-            <span>
-              <strong>Entregar no meu endereço</strong>
-              <span className="muted">Combinaremos a entrega após o pagamento.</span>
-            </span>
-          </label>
-        </div>
-      </section>
+      <div className="checkout-grid">
 
-      <section className="public-checkout-block">
-        <h2>2. Identificação</h2>
+      <section className="public-checkout-block checkout-step checkout-step--1">
+        <h2>1. Seus dados</h2>
 
         {customer ? (
           <div className="field-grid">
@@ -313,6 +290,38 @@ export function PublicCheckoutForm({
             <Link href={`/entrar?return=${encodeURIComponent("/checkout")}`}>Entrar</Link>
           </p>
         ) : null}
+      </section>
+
+      <section className="public-checkout-block checkout-step checkout-step--2">
+        <h2>2. Entrega</h2>
+        <div className="public-delivery-options">
+          <label className="public-delivery-option">
+            <input
+              type="radio"
+              name="deliveryMode"
+              value={DeliveryMode.PICKUP}
+              checked={deliveryMode === DeliveryMode.PICKUP}
+              onChange={() => setDeliveryMode(DeliveryMode.PICKUP)}
+            />
+            <span>
+              <strong>Retirar no local</strong>
+              <span className="muted">Você passa para buscar e pagar.</span>
+            </span>
+          </label>
+          <label className="public-delivery-option">
+            <input
+              type="radio"
+              name="deliveryMode"
+              value={DeliveryMode.DELIVERY}
+              checked={deliveryMode === DeliveryMode.DELIVERY}
+              onChange={() => setDeliveryMode(DeliveryMode.DELIVERY)}
+            />
+            <span>
+              <strong>Entregar no meu endereço</strong>
+              <span className="muted">Combinaremos a entrega após o pagamento.</span>
+            </span>
+          </label>
+        </div>
 
         {deliveryMode === DeliveryMode.DELIVERY ? (
           <div className="stack">
@@ -351,75 +360,130 @@ export function PublicCheckoutForm({
                     required
                   />
                   {cepLookupError ? (
-                    <small className="form-error compact">{cepLookupError}</small>
+                    <small className="form-error compact">
+                      {cepLookupError}{" "}
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setAddressRevealed(true)}
+                      >
+                        Não tenho CEP / preencher manualmente
+                      </button>
+                    </small>
+                  ) : null}
+                  {!addressRevealed && !cepLookupError ? (
+                    <small className="muted">Informe o CEP para continuar.</small>
                   ) : null}
                 </label>
 
-                <div className="field-grid">
-                  <label className="field">
-                    <span>Rua</span>
-                    <input
-                      value={addressDraft.street}
-                      onChange={(event) => setAddressDraft((current) => ({ ...current, street: event.target.value }))}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Número</span>
-                    <input
-                      value={addressDraft.number}
-                      onChange={(event) => setAddressDraft((current) => ({ ...current, number: event.target.value }))}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Complemento</span>
-                    <input
-                      value={addressDraft.complement}
-                      onChange={(event) => setAddressDraft((current) => ({ ...current, complement: event.target.value }))}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Bairro</span>
-                    <input
-                      value={addressDraft.neighborhood}
-                      onChange={(event) => setAddressDraft((current) => ({ ...current, neighborhood: event.target.value }))}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Cidade</span>
-                    <input value={addressDraft.city} readOnly required tabIndex={-1} />
-                  </label>
-                  <label className="field">
-                    <span>UF</span>
-                    <input value={addressDraft.state} readOnly required tabIndex={-1} maxLength={2} />
-                  </label>
-                  <label className="field">
-                    <span>Ponto de referência</span>
-                    <input
-                      value={addressDraft.reference}
-                      onChange={(event) => setAddressDraft((current) => ({ ...current, reference: event.target.value }))}
-                    />
-                  </label>
-                </div>
+                {addressRevealed ? (
+                  <div className="field-grid">
+                    <label className="field">
+                      <span>Rua</span>
+                      <input
+                        value={addressDraft.street}
+                        onChange={(event) =>
+                          setAddressDraft((current) => ({ ...current, street: event.target.value }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Número</span>
+                      <input
+                        value={addressDraft.number}
+                        onChange={(event) =>
+                          setAddressDraft((current) => ({ ...current, number: event.target.value }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Complemento</span>
+                      <input
+                        value={addressDraft.complement}
+                        onChange={(event) =>
+                          setAddressDraft((current) => ({ ...current, complement: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Bairro</span>
+                      <input
+                        value={addressDraft.neighborhood}
+                        onChange={(event) =>
+                          setAddressDraft((current) => ({ ...current, neighborhood: event.target.value }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Cidade</span>
+                      <input value={addressDraft.city} readOnly required tabIndex={-1} />
+                    </label>
+                    <label className="field">
+                      <span>UF</span>
+                      <input
+                        value={addressDraft.state}
+                        readOnly
+                        required
+                        tabIndex={-1}
+                        maxLength={2}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Ponto de referência</span>
+                      <input
+                        value={addressDraft.reference}
+                        onChange={(event) =>
+                          setAddressDraft((current) => ({ ...current, reference: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
         ) : null}
       </section>
 
-      <section className="public-checkout-block">
-        <h2>3. Revisão e finalização</h2>
+      <section className="public-checkout-block checkout-step checkout-step--3">
+        <h2>3. Carrinho e pagamento</h2>
 
         <ul className="public-checkout-summary">
           {items.map((item) => {
             const product = productsLookup[item.productId];
             const lineTotal = (product?.priceCents ?? 0) * item.quantity;
             return (
-              <li key={item.productId}>
-                <span>{product?.name ?? "Produto indisponível"} × {item.quantity}</span>
-                <strong>{formatCurrency(lineTotal)}</strong>
+              <li key={item.productId} className="public-checkout-summary-row">
+                {product ? (
+                  <ProductMedia product={product} size="sm" />
+                ) : (
+                  <div className="product-media product-media--sm" aria-hidden />
+                )}
+                <div className="public-checkout-summary-info">
+                  <strong>{product?.name ?? "Produto indisponível"}</strong>
+                  <span className="muted">{formatCurrency(product?.priceCents ?? 0)} cada</span>
+                </div>
+                {product ? (
+                  <QuantityStepper
+                    size="sm"
+                    value={item.quantity}
+                    onChange={(next) => updateQuantity(item.productId, next)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="button button-secondary compact"
+                    onClick={() => removeItem(item.productId)}
+                  >
+                    Remover
+                  </button>
+                )}
+                <strong className="public-checkout-summary-total">
+                  {formatCurrency(lineTotal)}
+                </strong>
               </li>
             );
           })}
@@ -448,9 +512,13 @@ export function PublicCheckoutForm({
           />
           <span>
             Aceito a{" "}
-            <Link href="/politica-de-privacidade" target="_blank">
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setShowTermsModal(true)}
+            >
               Política de Privacidade
-            </Link>{" "}
+            </button>{" "}
             e o processamento dos meus dados.
           </span>
         </label>
@@ -507,6 +575,17 @@ export function PublicCheckoutForm({
           {isPending ? "Enviando pedido..." : "Finalizar pedido"}
         </button>
       </section>
+
+      </div>
+
+      <Modal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Política de Privacidade"
+        size="lg"
+      >
+        <PrivacyPolicyContent />
+      </Modal>
     </form>
   );
 }
