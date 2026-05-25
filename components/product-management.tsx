@@ -10,6 +10,7 @@ import {
   formatCurrency,
   formatCurrencyInput,
 } from "@/lib/utils/money";
+import { useToast } from "@/components/toast";
 
 const placeholderImagePath = "/catalog-placeholder.jpg";
 const acceptedImageMime = "image/jpeg,image/png,image/webp";
@@ -76,14 +77,11 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
   const categoryListId = useId();
   const fileInputId = useId();
   const router = useRouter();
+  const toast = useToast();
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [editingProduct, setEditingProduct] = useState<ProductDto | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [imageFeedback, setImageFeedback] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,28 +139,17 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
       isActive: product.isActive,
     });
     setEditingProduct(product);
-    setFeedback(null);
-    setError(null);
-    setImageFeedback(null);
-    setImageError(null);
     clearSelectedFile();
   }
 
   function resetForm() {
     setForm(emptyForm);
     setEditingProduct(null);
-    setFeedback(null);
-    setError(null);
-    setImageFeedback(null);
-    setImageError(null);
     clearSelectedFile();
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
-
-    setImageError(null);
-    setImageFeedback(null);
     setSelectedFile(file);
   }
 
@@ -179,11 +166,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
     if (!canManage) {
       return;
     }
-
-    setFeedback(null);
-    setError(null);
-    setImageError(null);
-    setImageFeedback(null);
 
     const payload = {
       ...(form.id ? { id: form.id } : {}),
@@ -213,24 +195,24 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           if (selectedFile) {
             try {
               await uploadImageForProduct(savedProduct.id, selectedFile);
-              setImageFeedback("Imagem enviada com sucesso.");
+              toast.success("Imagem enviada com sucesso.");
             } catch (uploadError: unknown) {
-              setImageError(
+              const message =
                 uploadError instanceof Error
                   ? uploadError.message
-                  : "Falha ao enviar a imagem.",
-              );
-              setFeedback(
+                  : "Falha ao enviar a imagem.";
+              toast.error(message);
+              toast.info(
                 form.id
-                  ? "Produto atualizado, porém a imagem não foi salva."
-                  : "Produto cadastrado, porém a imagem não foi salva.",
+                  ? "O produto foi atualizado, porém a imagem não foi salva."
+                  : "O produto foi cadastrado, porém a imagem não foi salva.",
               );
               router.refresh();
               return;
             }
           }
 
-          setFeedback(
+          toast.success(
             form.id
               ? "Produto atualizado com sucesso."
               : "Produto cadastrado com sucesso.",
@@ -239,9 +221,11 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           router.refresh();
         })
         .catch((caughtError: unknown) => {
-          setError(
-            caughtError instanceof Error ? caughtError.message : "Falha ao salvar o produto.",
-          );
+          const message =
+            caughtError instanceof Error && caughtError.message
+              ? caughtError.message
+              : "Falha ao salvar o produto.";
+          toast.error(message);
         });
     });
   }
@@ -259,9 +243,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
       return;
     }
 
-    setImageError(null);
-    setImageFeedback(null);
-
     startTransition(() => {
       void apiFetch(
         `/api/products/${editingProduct.id}/image`,
@@ -269,7 +250,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
         productSchema,
       )
         .then(() => {
-          setImageFeedback("Imagem removida.");
+          toast.success("Imagem removida.");
           setEditingProduct((current) =>
             current ? { ...current, imagePath: null } : current,
           );
@@ -277,9 +258,11 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           router.refresh();
         })
         .catch((caughtError: unknown) => {
-          setImageError(
-            caughtError instanceof Error ? caughtError.message : "Falha ao remover a imagem.",
-          );
+          const message =
+            caughtError instanceof Error && caughtError.message
+              ? caughtError.message
+              : "Falha ao remover a imagem.";
+          toast.error(message);
         });
     });
   }
@@ -458,8 +441,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                 </div>
               </div>
 
-              {imageFeedback ? <p className="form-success compact">{imageFeedback}</p> : null}
-              {imageError ? <p className="form-error compact">{imageError}</p> : null}
             </div>
 
             <label className="checkbox-field">
@@ -471,8 +452,6 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
               <span>Produto ativo</span>
             </label>
 
-            {feedback ? <p className="form-success">{feedback}</p> : null}
-            {error ? <p className="form-error">{error}</p> : null}
 
             <button className="button button-primary" type="submit" disabled={isPending}>
               {isPending ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar produto"}

@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils/money";
 import { formatDisplayDate, formatTimeAgo } from "@/lib/utils/date";
 import { formatPhoneBr } from "@/lib/utils/strings";
 import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
+import { useToast } from "@/components/toast";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
   PENDING_PAYMENT: "Aguardando pagamento",
@@ -52,9 +53,8 @@ type WebOrderDetailProps = {
 
 export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const router = useRouter();
+  const toast = useToast();
   const [order, setOrder] = useState<WebOrderDto>(initialOrder);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [mountedClientTime, setMountedClientTime] = useState<Date | null>(null);
   const cancelDialogRef = useRef<HTMLDialogElement | null>(null);
@@ -76,9 +76,6 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const canCancel = allowedTransitions.includes(WebOrderStatus.CANCELLED);
 
   function performTransition(toStatus: WebOrderStatus, notes?: string) {
-    setError(null);
-    setSuccess(null);
-
     startTransition(() => {
       void apiFetch(
         `/api/admin/web-orders/${order.id}/status`,
@@ -90,11 +87,15 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
       )
         .then((updated) => {
           setOrder(updated);
-          setSuccess(`Status atualizado para ${STATUS_LABELS[toStatus]}.`);
+          toast.success(`Status atualizado para ${STATUS_LABELS[toStatus]}.`);
           router.refresh();
         })
         .catch((caught: unknown) => {
-          setError(caught instanceof Error ? caught.message : "Falha ao atualizar status.");
+          const message =
+            caught instanceof Error && caught.message
+              ? caught.message
+              : "Falha ao atualizar status.";
+          toast.error(message);
         });
     });
   }
@@ -165,8 +166,6 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           </div>
         </div>
 
-        {success ? <p className="form-success compact">{success}</p> : null}
-        {error ? <p className="form-error compact">{error}</p> : null}
       </section>
 
       <section className="panel">
