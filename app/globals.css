@@ -2093,8 +2093,8 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
-    "step1 step2"
-    "step3 step3";
+    "step1 step3"
+    "step2 step3";
   gap: 1.25rem;
   align-items: start;
 }
