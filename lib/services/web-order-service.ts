@@ -16,6 +16,7 @@ import {
   webOrderCreateInputSchema,
 } from "@/lib/schemas/web-order";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import { sendNewOrderPushToAdmins } from "@/lib/services/push-notification-service";
 import {
   cancelingRevertsStock,
   isValidTransition,
@@ -274,6 +275,18 @@ export async function createWebOrder(
   });
 
   logger.info("web_order_created", { orderId: result.id, totalCents: result.totalCents });
+
+  void sendNewOrderPushToAdmins({
+    orderId: result.id,
+    customerName: result.customer.name,
+    totalCents: result.totalCents,
+  }).catch((err) => {
+    logger.error("push admin falhou ao notificar novo pedido", {
+      err: err instanceof Error ? err.message : String(err),
+      orderId: result.id,
+    });
+  });
+
   return toWebOrderDto(result);
 }
 

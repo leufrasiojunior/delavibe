@@ -2535,6 +2535,42 @@ button {
   }
 }
 
+/* ===== Push toggle ===== */
+
+.push-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.push-toggle:hover:not(:disabled):not(.push-toggle--muted) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.push-toggle:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.push-toggle--active {
+  background: rgba(34, 130, 102, 0.22);
+  border-color: rgba(34, 130, 102, 0.5);
+}
+
+.push-toggle--muted {
+  background: transparent;
+  color: rgba(255, 248, 246, 0.55);
+  cursor: default;
+}
+
 /* ===== Mobile hardening ===== */
 
 @media (max-width: 768px) {
