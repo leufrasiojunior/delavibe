@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import {
   BarChart3,
   Boxes,
@@ -39,9 +39,20 @@ const navigation: NavItem[] = [
   { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
 
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 export function AppShell({ session, children }: AppShellProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   // Fecha o drawer ao navegar entre rotas
   useEffect(() => {
@@ -62,20 +73,53 @@ export function AppShell({ session, children }: AppShellProps) {
     };
   }, [isMobileMenuOpen]);
 
-  // Fecha com tecla Escape
+  // Foco trap + restauração + Escape para fechar
   useEffect(() => {
     if (!isMobileMenuOpen) {
       return;
     }
 
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const sidebar = sidebarRef.current;
+    if (sidebar) {
+      const first = sidebar.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (first ?? sidebar).focus();
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        event.preventDefault();
         setIsMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const node = sidebarRef.current;
+      if (!node) return;
+      const focusables = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      if (focusables.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !node.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      const previous = previouslyFocusedRef.current;
+      if (previous && typeof previous.focus === "function") {
+        previous.focus();
+      }
+    };
   }, [isMobileMenuOpen]);
 
   return (
@@ -105,7 +149,13 @@ export function AppShell({ session, children }: AppShellProps) {
         />
       ) : null}
 
-      <aside id="app-sidebar" className="sidebar" aria-hidden={!isMobileMenuOpen ? undefined : false}>
+      <aside
+        ref={sidebarRef}
+        id="app-sidebar"
+        className="sidebar"
+        aria-hidden={!isMobileMenuOpen ? undefined : false}
+        tabIndex={-1}
+      >
         <div className="brand-panel">
           <div className="brand-orbit" />
           <p className="eyebrow">Adega Dela's Vibe</p>

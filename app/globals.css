@@ -12,6 +12,7 @@
   --success: #228266;
   --shadow: 0 24px 60px rgba(92, 29, 67, 0.16);
   --radius: 24px;
+  --touch-target-min: 44px;
 }
 
 * {
@@ -371,6 +372,9 @@ button {
 
 .table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
 }
 
 .data-table {
@@ -1857,6 +1861,8 @@ button {
   padding: 0.25rem 0.1rem 0.5rem;
   overflow-x: auto;
   scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .public-category-chips::-webkit-scrollbar {
@@ -2512,3 +2518,42 @@ button {
     width: auto;
   }
 }
+
+/* ===== Mobile hardening ===== */
+
+@media (max-width: 768px) {
+  /* Anti-zoom iOS: inputs precisam >=16px */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+
+  /* Touch target minimo nos elementos interativos principais */
+  .button,
+  .nav-link,
+  .commanda-main-tab,
+  .commanda-tab,
+  .commanda-creation-tab,
+  .quantity-stepper-btn,
+  .modal-close,
+  .mobile-menu-toggle {
+    min-height: var(--touch-target-min);
+  }
+
+  .button.compact {
+    min-height: 40px;
+  }
+}
+
+/* Drawer admin: nao deixa o overscroll passar para o body */
+.sidebar {
+  overscroll-behavior: contain;
+}
+
+/* Safe-area-inset para iOS nas barras inferiores */
+.public-footer,
+.sidebar-footer {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
