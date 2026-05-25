@@ -1,19 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
 
+import { ProductMedia } from "@/components/product-media";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
-
-const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
-
-function imageUrl(product: PublicProductDto | undefined) {
-  if (!product?.imagePath) return PLACEHOLDER_IMAGE;
-  const version = Date.parse(product.updatedAt);
-  return `${product.imagePath}?v=${Number.isFinite(version) ? version : 0}`;
-}
 
 type PublicCartProps = {
   productsLookup: Record<string, PublicProductDto>;
@@ -86,42 +80,24 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
           const lineTotal = product.priceCents * item.quantity;
           return (
             <li key={item.productId} className="public-cart-line">
-              <img src={imageUrl(product)} alt={product.name} loading="lazy" />
+              <ProductMedia product={product} size="lg" />
               <div className="public-cart-line-info">
                 <strong>{product.name}</strong>
                 <span className="muted">{formatCurrency(product.priceCents)} cada</span>
                 <div className="public-cart-line-quantity">
-                  <button
-                    type="button"
-                    aria-label="Diminuir quantidade"
-                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                  >
-                    <Minus size={14} aria-hidden />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
+                  <QuantityStepper
                     value={item.quantity}
-                    onChange={(event) =>
-                      updateQuantity(item.productId, Math.max(0, Number(event.target.value || 0)))
-                    }
+                    onChange={(next) => updateQuantity(item.productId, next)}
                   />
                   <button
+                    className="button button-secondary compact"
                     type="button"
-                    aria-label="Aumentar quantidade"
-                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                    onClick={() => removeItem(item.productId)}
                   >
-                    <Plus size={14} aria-hidden />
+                    <Trash2 size={14} aria-hidden />
+                    Remover
                   </button>
                 </div>
-                <button
-                  className="button button-secondary compact"
-                  type="button"
-                  onClick={() => removeItem(item.productId)}
-                >
-                  <Trash2 size={14} aria-hidden />
-                  Remover
-                </button>
               </div>
               <strong>{formatCurrency(lineTotal)}</strong>
             </li>
