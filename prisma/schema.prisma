@@ -39,6 +39,7 @@ enum WebOrderStatus {
   PAID
   PREPARING
   READY
+  OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
 }
@@ -299,6 +300,7 @@ model WebOrder {
   addressReference    String?
   items               WebOrderItem[]
   statusLogs          WebOrderStatusLog[]
+  paidMethods         PaymentMethod[]     @default([])
   statusUpdatedAt     DateTime            @default(now())
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt

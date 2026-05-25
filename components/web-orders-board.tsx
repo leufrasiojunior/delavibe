@@ -22,10 +22,11 @@ const POLL_INTERVAL_MS = 30_000;
 const NEW_HIGHLIGHT_MS = 10_000;
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando pagamento",
+  PENDING_PAYMENT: "Recebido",
   PAID: "Pago",
   PREPARING: "Em preparo",
   READY: "Pronto",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Entregue",
   CANCELLED: "Cancelado",
 };
@@ -34,7 +35,8 @@ const STATUS_BADGE_CLASS: Record<WebOrderStatus, string> = {
   PENDING_PAYMENT: "badge warning",
   PAID: "badge neutral",
   PREPARING: "badge neutral",
-  READY: "badge success",
+  READY: "badge neutral",
+  OUT_FOR_DELIVERY: "badge warning",
   DELIVERED: "badge success",
   CANCELLED: "badge danger",
 };

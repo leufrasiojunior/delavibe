@@ -8,11 +8,13 @@ import {
   CircleDollarSign,
   PackageCheck,
   RotateCcw,
+  Truck,
   XCircle,
 } from "lucide-react";
 
-import { WebOrderStatus } from "@prisma/client";
+import { PaymentMethod, WebOrderStatus } from "@prisma/client";
 
+import { Modal } from "@/components/modal";
 import { apiFetch } from "@/lib/api/client";
 import {
   webOrderSchema,
@@ -25,10 +27,11 @@ import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
 import { useToast } from "@/components/toast";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando pagamento",
+  PENDING_PAYMENT: "Recebido",
   PAID: "Pago",
   PREPARING: "Em preparo",
   READY: "Pronto",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Entregue",
   CANCELLED: "Cancelado",
 };
@@ -37,7 +40,8 @@ const STATUS_BADGE_CLASS: Record<WebOrderStatus, string> = {
   PENDING_PAYMENT: "badge warning",
   PAID: "badge neutral",
   PREPARING: "badge neutral",
-  READY: "badge success",
+  READY: "badge neutral",
+  OUT_FOR_DELIVERY: "badge warning",
   DELIVERED: "badge success",
   CANCELLED: "badge danger",
 };
@@ -47,6 +51,7 @@ const TRANSITION_LABELS: Record<WebOrderStatus, string> = {
   PAID: "Marcar como pago",
   PREPARING: "Iniciar preparo",
   READY: "Marcar como pronto",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Marcar como entregue",
   CANCELLED: "Cancelar pedido",
 };
@@ -56,9 +61,19 @@ const TRANSITION_ICONS: Record<WebOrderStatus, typeof RotateCcw> = {
   PAID: CircleDollarSign,
   PREPARING: ChefHat,
   READY: PackageCheck,
+  OUT_FOR_DELIVERY: Truck,
   DELIVERED: CheckCheck,
   CANCELLED: XCircle,
 };
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: "Dinheiro",
+  pix: "PIX",
+  debit: "Débito",
+  credit: "Crédito",
+};
+
+const PAYMENT_METHOD_ORDER: PaymentMethod[] = ["cash", "pix", "debit", "credit"];
 
 function isAnonymized(order: WebOrderDto) {
   return order.customerEmail.startsWith("deleted-");
@@ -77,6 +92,9 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const cancelDialogRef = useRef<HTMLDialogElement | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentSelection, setPaymentSelection] = useState<PaymentMethod[]>([]);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     setMountedClientTime(new Date());
@@ -88,23 +106,32 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   );
 
   const nonCancelTransitions = allowedTransitions.filter(
-    (status) => status !== WebOrderStatus.CANCELLED,
+    // DELIVERED é transição automática após PAID — esconde o botão manual.
+    (status) => status !== WebOrderStatus.CANCELLED && status !== WebOrderStatus.DELIVERED,
   );
   const canCancel = allowedTransitions.includes(WebOrderStatus.CANCELLED);
 
-  function performTransition(toStatus: WebOrderStatus, notes?: string) {
+  function performTransition(
+    toStatus: WebOrderStatus,
+    options?: { notes?: string; paidMethods?: PaymentMethod[] },
+  ) {
     startTransition(() => {
       void apiFetch(
         `/api/admin/web-orders/${order.id}/status`,
         {
           method: "PATCH",
-          body: JSON.stringify({ toStatus, notes: notes ?? null }),
+          body: JSON.stringify({
+            toStatus,
+            notes: options?.notes ?? null,
+            paidMethods: options?.paidMethods ?? null,
+          }),
         },
         webOrderSchema,
       )
         .then((updated) => {
           setOrder(updated);
-          toast.success(`Status atualizado para ${STATUS_LABELS[toStatus]}.`);
+          const successLabel = STATUS_LABELS[updated.status];
+          toast.success(`Status atualizado para ${successLabel}.`);
           router.refresh();
         })
         .catch((caught: unknown) => {
@@ -115,6 +142,35 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           toast.error(message);
         });
     });
+  }
+
+  function openPaymentModal() {
+    setPaymentSelection([]);
+    setPaymentError(null);
+    setShowPaymentModal(true);
+  }
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    setPaymentSelection((current) =>
+      current.includes(method) ? current.filter((m) => m !== method) : [...current, method],
+    );
+  }
+
+  function submitPayment() {
+    if (paymentSelection.length === 0) {
+      setPaymentError("Selecione pelo menos uma forma de pagamento.");
+      return;
+    }
+    setShowPaymentModal(false);
+    performTransition(WebOrderStatus.PAID, { paidMethods: paymentSelection });
+  }
+
+  function handleTransitionClick(toStatus: WebOrderStatus) {
+    if (toStatus === WebOrderStatus.PAID) {
+      openPaymentModal();
+      return;
+    }
+    performTransition(toStatus);
   }
 
   function openCancelDialog() {
@@ -136,7 +192,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
     }
 
     closeCancelDialog();
-    performTransition(WebOrderStatus.CANCELLED, trimmed);
+    performTransition(WebOrderStatus.CANCELLED, { notes: trimmed });
   }
 
   const customerLabel = isAnonymized(order) ? "Cliente removido" : order.customerName;
@@ -166,7 +222,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
                   key={status}
                   type="button"
                   className="button button-primary compact"
-                  onClick={() => performTransition(status)}
+                  onClick={() => handleTransitionClick(status)}
                   disabled={isPending}
                 >
                   <Icon size={14} aria-hidden />
@@ -289,6 +345,14 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           <span>Total</span>
           <strong>{formatCurrency(order.totalCents)}</strong>
         </div>
+        {order.paidMethods.length > 0 ? (
+          <p className="muted">
+            Pagamento:{" "}
+            <strong>
+              {order.paidMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(", ")}
+            </strong>
+          </p>
+        ) : null}
         {order.notes ? <p className="muted">Notas do cliente: {order.notes}</p> : null}
       </section>
 
@@ -338,6 +402,50 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           </div>
         </form>
       </dialog>
+
+      <Modal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        title="Marcar como pago"
+        size="sm"
+      >
+        <p className="muted">Selecione uma ou mais formas de pagamento usadas:</p>
+        <div className="payment-methods-grid">
+          {PAYMENT_METHOD_ORDER.map((method) => (
+            <label key={method} className="payment-method-option">
+              <input
+                type="checkbox"
+                checked={paymentSelection.includes(method)}
+                onChange={() => togglePaymentMethod(method)}
+              />
+              <span>{PAYMENT_METHOD_LABELS[method]}</span>
+            </label>
+          ))}
+        </div>
+        <p className="muted small">
+          Ao confirmar, o pedido sera marcado como <strong>Pago</strong> e em seguida{" "}
+          <strong>Entregue</strong>.
+        </p>
+        {paymentError ? <p className="form-error compact">{paymentError}</p> : null}
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary compact"
+            onClick={() => setShowPaymentModal(false)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="button button-primary compact"
+            onClick={submitPayment}
+            disabled={paymentSelection.length === 0 || isPending}
+          >
+            <CircleDollarSign size={14} aria-hidden />
+            Confirmar pagamento
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -118,11 +118,14 @@ test("customerAddressInputSchema rejeita CEP com tamanho errado", async () => {
 });
 
 test("isValidTransition aceita transições válidas e rejeita inválidas", () => {
-  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PAID), true);
+  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PREPARING), true);
   assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.CANCELLED), true);
-  assert.equal(isValidTransition(WebOrderStatus.PAID, WebOrderStatus.PREPARING), true);
-  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.DELIVERED), true);
-  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.PAID), false);
+  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PAID), false);
+  assert.equal(isValidTransition(WebOrderStatus.PREPARING, WebOrderStatus.READY), true);
+  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.OUT_FOR_DELIVERY), true);
+  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.DELIVERED), false);
+  assert.equal(isValidTransition(WebOrderStatus.OUT_FOR_DELIVERY, WebOrderStatus.PAID), true);
+  assert.equal(isValidTransition(WebOrderStatus.PAID, WebOrderStatus.DELIVERED), true);
   assert.equal(isValidTransition(WebOrderStatus.DELIVERED, WebOrderStatus.CANCELLED), false);
   assert.equal(isValidTransition(WebOrderStatus.CANCELLED, WebOrderStatus.PAID), false);
 });
@@ -160,18 +163,44 @@ test("webOrderStatusTransitionSchema exige nota quando cancelando", async () => 
 
 test("webOrderStatusTransitionSchema aceita transição não-cancelamento sem nota", async () => {
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
-    toStatus: WebOrderStatus.PAID,
+    toStatus: WebOrderStatus.PREPARING,
   });
-  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.equal(parsed.toStatus, WebOrderStatus.PREPARING);
 });
 
 test("webOrderStatusTransitionSchema aceita notes: null em transição não-cancelamento", async () => {
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
-    toStatus: WebOrderStatus.PAID,
+    toStatus: WebOrderStatus.PREPARING,
     notes: null,
   });
-  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.equal(parsed.toStatus, WebOrderStatus.PREPARING);
   assert.equal(parsed.notes, null);
+});
+
+test("webOrderStatusTransitionSchema exige paidMethods ao marcar como pago", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({ toStatus: WebOrderStatus.PAID }),
+  );
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      paidMethods: [],
+    }),
+  );
+  const parsed = await webOrderStatusTransitionSchema.parseAsync({
+    toStatus: WebOrderStatus.PAID,
+    paidMethods: ["cash"],
+  });
+  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.deepEqual(parsed.paidMethods, ["cash"]);
+});
+
+test("webOrderStatusTransitionSchema aceita paidMethods com varias formas", async () => {
+  const parsed = await webOrderStatusTransitionSchema.parseAsync({
+    toStatus: WebOrderStatus.PAID,
+    paidMethods: ["cash", "pix"],
+  });
+  assert.deepEqual(parsed.paidMethods, ["cash", "pix"]);
 });
 
 test("webOrderCreateInputSchema exige pelo menos um item", async () => {

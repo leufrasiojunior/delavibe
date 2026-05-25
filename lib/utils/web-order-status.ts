@@ -1,10 +1,11 @@
 import { WebOrderStatus } from "@prisma/client";
 
 export const WEB_ORDER_TRANSITIONS: Record<WebOrderStatus, WebOrderStatus[]> = {
-  PENDING_PAYMENT: [WebOrderStatus.PAID, WebOrderStatus.CANCELLED],
-  PAID: [WebOrderStatus.PREPARING, WebOrderStatus.CANCELLED],
+  PENDING_PAYMENT: [WebOrderStatus.PREPARING, WebOrderStatus.CANCELLED],
   PREPARING: [WebOrderStatus.READY, WebOrderStatus.CANCELLED],
-  READY: [WebOrderStatus.DELIVERED, WebOrderStatus.CANCELLED],
+  READY: [WebOrderStatus.OUT_FOR_DELIVERY, WebOrderStatus.CANCELLED],
+  OUT_FOR_DELIVERY: [WebOrderStatus.PAID, WebOrderStatus.CANCELLED],
+  PAID: [WebOrderStatus.DELIVERED, WebOrderStatus.CANCELLED],
   DELIVERED: [],
   CANCELLED: [],
 };
@@ -16,9 +17,10 @@ export const WEB_ORDER_TERMINAL_STATES: WebOrderStatus[] = [
 
 export const WEB_ORDER_STOCK_REVERTING_FROM_STATES: WebOrderStatus[] = [
   WebOrderStatus.PENDING_PAYMENT,
-  WebOrderStatus.PAID,
   WebOrderStatus.PREPARING,
   WebOrderStatus.READY,
+  WebOrderStatus.OUT_FOR_DELIVERY,
+  WebOrderStatus.PAID,
 ];
 
 export function isValidTransition(from: WebOrderStatus, to: WebOrderStatus): boolean {

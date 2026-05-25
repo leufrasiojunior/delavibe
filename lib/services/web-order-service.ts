@@ -1,5 +1,6 @@
 import {
   DeliveryMode,
+  PaymentMethod,
   Prisma,
   WebOrderStatus,
   WebOrderStatusActorType,
@@ -92,6 +93,7 @@ function toWebOrderDto(order: WebOrderWithRelations): WebOrderDto {
     addressReference: order.addressReference,
     items: order.items.map(toItemDto),
     statusLogs: order.statusLogs.map(toStatusLogDto),
+    paidMethods: order.paidMethods,
     statusUpdatedAt: order.statusUpdatedAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -351,6 +353,7 @@ export async function updateWebOrderStatus(
   actorUserId: string,
   ipAddress: string,
   notes?: string | null,
+  paidMethods?: PaymentMethod[] | null,
 ): Promise<WebOrderDto> {
   const result = await db.$transaction(async (tx) => {
     const order = await tx.webOrder.findUnique({
@@ -369,6 +372,14 @@ export async function updateWebOrderStatus(
         `Transição inválida: ${order.status} → ${toStatus}.`,
         { from: order.status, to: toStatus },
         "Atualize a tela para ver o status atual do pedido.",
+      );
+    }
+
+    if (toStatus === WebOrderStatus.PAID && (!paidMethods || paidMethods.length === 0)) {
+      throw new AppError(
+        400,
+        "missing_payment_methods",
+        "Informe pelo menos uma forma de pagamento.",
       );
     }
 
@@ -393,20 +404,45 @@ export async function updateWebOrderStatus(
       }
     }
 
+    const now = new Date();
+    const isPaidWithAutoDelivery = toStatus === WebOrderStatus.PAID;
+    const finalStatus = isPaidWithAutoDelivery ? WebOrderStatus.DELIVERED : toStatus;
+
+    const statusLogsCreate: Array<{
+      fromStatus: WebOrderStatus;
+      toStatus: WebOrderStatus;
+      actorUserId: string;
+      actorType: typeof WebOrderStatusActorType.admin | typeof WebOrderStatusActorType.system;
+      notes: string | null;
+    }> = [
+      {
+        fromStatus: order.status,
+        toStatus,
+        actorUserId,
+        actorType: WebOrderStatusActorType.admin,
+        notes: notes ?? null,
+      },
+    ];
+
+    if (isPaidWithAutoDelivery) {
+      statusLogsCreate.push({
+        fromStatus: WebOrderStatus.PAID,
+        toStatus: WebOrderStatus.DELIVERED,
+        actorUserId,
+        actorType: WebOrderStatusActorType.system,
+        notes: "Entrega registrada automaticamente após pagamento.",
+      });
+    }
+
     return tx.webOrder.update({
       where: { id: orderId },
       data: {
-        status: toStatus,
-        statusUpdatedAt: new Date(),
-        statusLogs: {
-          create: {
-            fromStatus: order.status,
-            toStatus,
-            actorUserId,
-            actorType: WebOrderStatusActorType.admin,
-            notes: notes ?? null,
-          },
-        },
+        status: finalStatus,
+        statusUpdatedAt: now,
+        ...(toStatus === WebOrderStatus.PAID && paidMethods
+          ? { paidMethods: { set: paidMethods } }
+          : {}),
+        statusLogs: { create: statusLogsCreate },
       },
       include: webOrderInclude,
     });
@@ -418,10 +454,15 @@ export async function updateWebOrderStatus(
     entityType: "web_order",
     entityId: orderId,
     ipAddress,
-    metadata: { toStatus, notes: notes ?? null },
+    metadata: {
+      toStatus,
+      notes: notes ?? null,
+      paidMethods: paidMethods ?? null,
+      autoDelivered: toStatus === WebOrderStatus.PAID,
+    },
   });
 
-  logger.info("web_order_status_changed", { orderId, toStatus });
+  logger.info("web_order_status_changed", { orderId, toStatus, finalStatus: result.status });
   return toWebOrderDto(result);
 }
 

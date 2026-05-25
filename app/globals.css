@@ -2535,6 +2535,34 @@ button {
   }
 }
 
+/* ===== Payment modal ===== */
+
+.payment-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+.payment-method-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.payment-method-option:has(input:checked) {
+  border-color: var(--magenta);
+  background: rgba(201, 47, 136, 0.08);
+  color: var(--magenta-deep);
+}
+
 /* ===== Push toggle ===== */
 
 .push-toggle {

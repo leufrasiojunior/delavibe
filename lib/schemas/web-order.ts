@@ -1,4 +1,4 @@
-import { DeliveryMode, WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
+import { DeliveryMode, PaymentMethod, WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
 import { z } from "zod";
 
 import { customerAddressInputSchema } from "@/lib/schemas/customer-address";
@@ -10,6 +10,7 @@ import {
 } from "@/lib/schemas/string-fields";
 
 const webOrderStatusSchema = z.nativeEnum(WebOrderStatus);
+const paymentMethodSchema = z.nativeEnum(PaymentMethod);
 const webOrderStatusActorTypeSchema = z.nativeEnum(WebOrderStatusActorType);
 const deliveryModeSchema = z.nativeEnum(DeliveryMode);
 
@@ -96,6 +97,7 @@ export const webOrderStatusTransitionSchema = z
   .object({
     toStatus: webOrderStatusSchema,
     notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").nullish(),
+    paidMethods: z.array(paymentMethodSchema).nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.toStatus === WebOrderStatus.CANCELLED) {
@@ -105,6 +107,16 @@ export const webOrderStatusTransitionSchema = z
           code: z.ZodIssueCode.custom,
           path: ["notes"],
           message: "Informe o motivo do cancelamento (mínimo 3 caracteres).",
+        });
+      }
+    }
+    if (data.toStatus === WebOrderStatus.PAID) {
+      const methods = data.paidMethods ?? [];
+      if (methods.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["paidMethods"],
+          message: "Informe pelo menos uma forma de pagamento.",
         });
       }
     }
@@ -120,9 +132,10 @@ export const webOrderListFiltersSchema = z.object({
 
 const WEB_ORDER_ACTIVE_STATUSES = [
   WebOrderStatus.PENDING_PAYMENT,
-  WebOrderStatus.PAID,
   WebOrderStatus.PREPARING,
   WebOrderStatus.READY,
+  WebOrderStatus.OUT_FOR_DELIVERY,
+  WebOrderStatus.PAID,
 ] as const;
 
 const WEB_ORDER_HISTORY_STATUSES = [
@@ -219,6 +232,7 @@ export const webOrderSchema = z.object({
   addressReference: z.string().nullable(),
   items: z.array(webOrderItemSchema),
   statusLogs: z.array(webOrderStatusLogSchema),
+  paidMethods: z.array(paymentMethodSchema),
   statusUpdatedAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
