@@ -1,48 +1,12 @@
+# Coolify (producao): stack apenas da aplicacao.
+# O banco Postgres roda em um stack SEPARADO no mesmo projeto Coolify
+# (ver docker-compose.db.yml) e é alcançado via DNS interno do Coolify
+# (ex.: postgres-<stack-id>:5432). DATABASE_URL deve ser configurada
+# nas env vars do Coolify para este stack apontando para a URL interna.
+#
+# Migrations rodam automaticamente no entrypoint do container do app.
+# Seed é manual: docker exec <container> npm run db:seed
 services:
-  postgres:
-    image: postgres:16-bookworm
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-delavibe}
-      POSTGRES_USER: ${POSTGRES_USER:-delavibe}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      TZ: America/Sao_Paulo
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-delavibe} -d ${POSTGRES_DB:-delavibe}",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: builder
-    restart: "no"
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-delavibe}?schema=public
-      NODE_ENV: production
-      SESSION_COOKIE_SECURE: "true"
-      SESSION_COOKIE_NAME: __Host-pdv_session
-      CSRF_COOKIE_NAME: __Host-pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: __Host-pdv_csrf
-      SESSION_TTL_HOURS: "12"
-      APP_TIMEZONE: America/Sao_Paulo
-      NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
-      TRUST_PROXY_HEADERS: "true"
-      TZ: America/Sao_Paulo
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["npm", "run", "db:migrate"]
-
   app:
     build:
       context: .
@@ -50,7 +14,7 @@ services:
       target: runner
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-delavibe}?schema=public
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (aponte para a URL interna do stack de DB)}
       NODE_ENV: production
       SESSION_COOKIE_SECURE: "true"
       SESSION_COOKIE_NAME: __Host-pdv_session
@@ -62,11 +26,6 @@ services:
       TRUST_PROXY_HEADERS: "true"
       TZ: America/Sao_Paulo
       UPLOADS_DIR: /app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     volumes:
       - uploads_data:/app/uploads
     healthcheck:
@@ -80,10 +39,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     expose:
       - "3000"
 
 volumes:
-  postgres_data:
   uploads_data:

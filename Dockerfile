@@ -25,9 +25,15 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-RUN groupadd -r nodejs && useradd -r -g nodejs nextjs \
+# prisma/ contém schema + migrations + seed.ts (necessário para
+# `prisma migrate deploy` rodar no entrypoint e para `npm run db:seed`
+# manual via `docker exec`).
+COPY --from=builder /app/prisma ./prisma
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+  && groupadd -r nodejs && useradd -r -g nodejs nextjs \
   && mkdir -p /app/uploads/products \
   && chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
