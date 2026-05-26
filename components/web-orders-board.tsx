@@ -2,44 +2,47 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, History, ListChecks, RefreshCw } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { CircleDollarSign, Eye, History, ListChecks, RefreshCw } from "lucide-react";
 
-import { WebOrderStatus } from "@prisma/client";
+import { PaymentMethod, WebOrderStatus } from "@prisma/client";
 
+import { Modal } from "@/components/modal";
 import { apiFetch } from "@/lib/api/client";
 import {
+  webOrderListResponseSchema,
+  webOrderSchema,
   WEB_ORDER_ACTIVE_STATUS_LIST,
   WEB_ORDER_HISTORY_STATUS_LIST,
-  webOrderListResponseSchema,
   type WebOrderDto,
 } from "@/lib/schemas/web-order";
-import { formatCurrency } from "@/lib/utils/money";
+import {
+  centsToCurrencyInput,
+  formatCurrency,
+  formatCurrencyInput,
+  parseCurrencyInputToCents,
+} from "@/lib/utils/money";
 import { formatTimeAgo } from "@/lib/utils/date";
+import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHOD_ORDER,
+  STATUS_BADGE_CLASS,
+  STATUS_LABELS,
+  TRANSITION_ICONS,
+  TRANSITION_LABELS,
+} from "@/lib/web-order-ui-config";
 import { useToast } from "@/components/toast";
 
 const POLL_INTERVAL_MS = 30_000;
 const NEW_HIGHLIGHT_MS = 10_000;
-
-const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Recebido",
-  PAID: "Pago",
-  PREPARING: "Em preparo",
-  READY: "Pronto",
-  OUT_FOR_DELIVERY: "Saiu para entrega",
-  DELIVERED: "Entregue",
-  CANCELLED: "Cancelado",
-};
-
-const STATUS_BADGE_CLASS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "badge warning",
-  PAID: "badge neutral",
-  PREPARING: "badge neutral",
-  READY: "badge neutral",
-  OUT_FOR_DELIVERY: "badge warning",
-  DELIVERED: "badge success",
-  CANCELLED: "badge danger",
-};
 
 type Tab = "active" | "history";
 
@@ -98,9 +101,24 @@ export function WebOrdersBoard({
   const [isFetching, setIsFetching] = useState(false);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [mountedClientTime, setMountedClientTime] = useState<Date | null>(null);
+  const [isTransitioning, startTransition] = useTransition();
+  const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null);
+  const [selectedMethods, setSelectedMethods] = useState<Set<PaymentMethod>>(new Set());
+  const [paymentInputs, setPaymentInputs] = useState<Record<PaymentMethod, string>>({
+    cash: "",
+    pix: "",
+    debit: "",
+    credit: "",
+  });
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const previousIdsRef = useRef<Set<string>>(new Set(initialItems.map((item) => item.id)));
   const inFlightRef = useRef(false);
+
+  const paymentOrder = useMemo(
+    () => (paymentOrderId ? items.find((o) => o.id === paymentOrderId) ?? null : null),
+    [paymentOrderId, items],
+  );
 
   useEffect(() => {
     setMountedClientTime(new Date());
@@ -248,6 +266,127 @@ export function WebOrdersBoard({
     void fetchOrders(filters);
   }
 
+  function updateLocalOrder(updated: WebOrderDto) {
+    setItems((current) => current.map((o) => (o.id === updated.id ? updated : o)));
+  }
+
+  function performInlineTransition(
+    orderId: string,
+    toStatus: WebOrderStatus,
+    payments?: { method: PaymentMethod; amountCents: number }[],
+  ) {
+    startTransition(() => {
+      void apiFetch(
+        `/api/admin/web-orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ toStatus, notes: null, payments: payments ?? null }),
+        },
+        webOrderSchema,
+      )
+        .then((updated) => {
+          updateLocalOrder(updated);
+          toast.success(`Status atualizado para ${STATUS_LABELS[updated.status]}.`);
+        })
+        .catch((caught: unknown) => {
+          const message =
+            caught instanceof Error && caught.message
+              ? caught.message
+              : "Falha ao atualizar status.";
+          toast.error(message);
+        });
+    });
+  }
+
+  function openPaymentModal(order: WebOrderDto) {
+    setPaymentOrderId(order.id);
+    setSelectedMethods(new Set(["cash"]));
+    setPaymentInputs({
+      cash: centsToCurrencyInput(order.totalCents),
+      pix: "",
+      debit: "",
+      credit: "",
+    });
+    setPaymentError(null);
+  }
+
+  function closePaymentModal() {
+    setPaymentOrderId(null);
+    setPaymentError(null);
+  }
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    if (!paymentOrder) return;
+    setPaymentError(null);
+    setSelectedMethods((currentSet) => {
+      const next = new Set(currentSet);
+      if (next.has(method)) {
+        next.delete(method);
+        setPaymentInputs((inputs) => ({ ...inputs, [method]: "" }));
+      } else {
+        next.add(method);
+        const sumOthers = Array.from(next)
+          .filter((m) => m !== method)
+          .reduce(
+            (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+            0,
+          );
+        const remaining = Math.max(0, paymentOrder.totalCents - sumOthers);
+        setPaymentInputs((inputs) => ({
+          ...inputs,
+          [method]: centsToCurrencyInput(remaining),
+        }));
+      }
+      return next;
+    });
+  }
+
+  function setPaymentAmount(method: PaymentMethod, raw: string) {
+    setPaymentError(null);
+    setPaymentInputs((inputs) => ({ ...inputs, [method]: formatCurrencyInput(raw) }));
+  }
+
+  const paymentSumCents = (Array.from(selectedMethods) as PaymentMethod[]).reduce(
+    (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+    0,
+  );
+  const paymentDiffCents = paymentOrder ? paymentOrder.totalCents - paymentSumCents : 0;
+
+  function submitPayment() {
+    if (!paymentOrder) return;
+    if (selectedMethods.size === 0) {
+      setPaymentError("Selecione pelo menos uma forma de pagamento.");
+      return;
+    }
+    const entries: { method: PaymentMethod; amountCents: number }[] = [];
+    for (const m of Array.from(selectedMethods) as PaymentMethod[]) {
+      const cents = parseCurrencyInputToCents(paymentInputs[m]);
+      if (cents === null || cents <= 0) {
+        setPaymentError(`Informe o valor pago em ${PAYMENT_METHOD_LABELS[m]}.`);
+        return;
+      }
+      entries.push({ method: m, amountCents: cents });
+    }
+    const sum = entries.reduce((a, e) => a + e.amountCents, 0);
+    if (sum !== paymentOrder.totalCents) {
+      setPaymentError(
+        `A soma (${formatCurrency(sum)}) precisa bater com o total (${formatCurrency(paymentOrder.totalCents)}).`,
+      );
+      return;
+    }
+    const orderId = paymentOrder.id;
+    closePaymentModal();
+    performInlineTransition(orderId, WebOrderStatus.PAID, entries);
+  }
+
+  function handleInlineActionClick(order: WebOrderDto, toStatus: WebOrderStatus) {
+    if (toStatus === WebOrderStatus.PAID) {
+      openPaymentModal(order);
+      return;
+    }
+    performInlineTransition(order.id, toStatus);
+  }
+
   return (
     <div className="stack">
       <section className="panel">
@@ -316,6 +455,9 @@ export function WebOrdersBoard({
           <ul className="web-orders-list">
             {items.map((order) => {
               const isNew = newIds.has(order.id);
+              const nextActions = (WEB_ORDER_TRANSITIONS[order.status] ?? []).filter(
+                (s) => s !== WebOrderStatus.CANCELLED && s !== WebOrderStatus.DELIVERED,
+              );
               return (
                 <li key={order.id} className={isNew ? "web-order-card new" : "web-order-card"}>
                   <div className="web-order-card-main">
@@ -337,16 +479,123 @@ export function WebOrdersBoard({
                       ) : null}
                     </p>
                   </div>
-                  <Link className="button button-secondary compact" href={`/admin/pedidos-web/${order.id}`}>
-                    <Eye size={14} aria-hidden />
-                    Ver detalhe
-                  </Link>
+                  <div className="web-order-card-actions">
+                    {nextActions.map((status) => {
+                      const Icon = TRANSITION_ICONS[status];
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          className="button button-primary compact"
+                          onClick={() => handleInlineActionClick(order, status)}
+                          disabled={isTransitioning}
+                        >
+                          <Icon size={14} aria-hidden />
+                          {TRANSITION_LABELS[status]}
+                        </button>
+                      );
+                    })}
+                    <Link
+                      className="button button-secondary compact"
+                      href={`/admin/pedidos-web/${order.id}`}
+                    >
+                      <Eye size={14} aria-hidden />
+                      Ver detalhe
+                    </Link>
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
       </section>
+
+      <Modal
+        isOpen={paymentOrder !== null}
+        onClose={closePaymentModal}
+        title="Marcar como pago"
+        size="sm"
+      >
+        {paymentOrder ? (
+          <>
+            <p className="muted">
+              Selecione as formas de pagamento e os valores. A soma precisa fechar com o total do
+              pedido (<strong>{formatCurrency(paymentOrder.totalCents)}</strong>).
+            </p>
+            <div className="payment-breakdown-grid">
+              {PAYMENT_METHOD_ORDER.map((method) => {
+                const isChecked = selectedMethods.has(method);
+                return (
+                  <div key={method} className="payment-breakdown-row">
+                    <label className="payment-method-option">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => togglePaymentMethod(method)}
+                      />
+                      <span>{PAYMENT_METHOD_LABELS[method]}</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="payment-amount-input"
+                      placeholder="R$ 0,00"
+                      value={paymentInputs[method]}
+                      onChange={(event) => setPaymentAmount(method, event.target.value)}
+                      disabled={!isChecked}
+                      aria-label={`Valor pago em ${PAYMENT_METHOD_LABELS[method]}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className={`payment-summary ${paymentDiffCents === 0 ? "ok" : "mismatch"}`}>
+              <span>
+                Soma:&nbsp;<strong>{formatCurrency(paymentSumCents)}</strong>&nbsp;/&nbsp;
+                <strong>{formatCurrency(paymentOrder.totalCents)}</strong>
+              </span>
+              {paymentDiffCents === 0 ? <strong>Valores conferem ✓</strong> : null}
+            </div>
+            {paymentDiffCents > 0 ? (
+              <div className="payment-alert payment-alert--warn">
+                <strong>Faltam {formatCurrency(paymentDiffCents)}.</strong> Ajuste os valores ou
+                selecione outra forma de pagamento para completar o total.
+              </div>
+            ) : null}
+            {paymentDiffCents < 0 ? (
+              <div className="payment-alert payment-alert--warn">
+                <strong>Sobra {formatCurrency(Math.abs(paymentDiffCents))}.</strong> A soma excede
+                o total do pedido — revise os valores informados.
+              </div>
+            ) : null}
+            <p className="muted small">
+              Ao confirmar, o pedido sera marcado como <strong>Pago</strong> e em seguida{" "}
+              <strong>Entregue</strong>.
+            </p>
+            {paymentError ? <p className="form-error compact">{paymentError}</p> : null}
+            <div className="button-row">
+              <button
+                type="button"
+                className="button button-secondary compact"
+                onClick={closePaymentModal}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button button-primary compact"
+                onClick={submitPayment}
+                disabled={
+                  selectedMethods.size === 0 || paymentDiffCents !== 0 || isTransitioning
+                }
+              >
+                <CircleDollarSign size={14} aria-hidden />
+                Confirmar pagamento
+              </button>
+            </div>
+          </>
+        ) : null}
+      </Modal>
     </div>
   );
 }
