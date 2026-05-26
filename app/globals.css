@@ -280,6 +280,12 @@ button {
   border-radius: 12px;
 }
 
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
 .button-primary {
   color: white;
   background: linear-gradient(135deg, var(--magenta) 0%, var(--coral) 100%);
