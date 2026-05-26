@@ -243,6 +243,17 @@ button {
 
 .panel {
   padding: 1.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .panel {
+    padding: 1rem 0.85rem;
+  }
+
+  .hero-banner {
+    padding: 1.1rem 1rem;
+  }
 }
 
 .panel-header {
@@ -389,6 +400,7 @@ button {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   overscroll-behavior-x: contain;
+  max-width: 100%;
 }
 
 .data-table {
@@ -437,6 +449,7 @@ button {
   display: grid;
   gap: 1rem;
   margin-top: 1.5rem;
+  min-width: 0;
 }
 
 .table-actions {
@@ -931,6 +944,18 @@ button {
 
 .analytics-stats-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1024px) {
+  .analytics-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .analytics-stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .analytics-grid {
