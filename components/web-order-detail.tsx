@@ -513,17 +513,25 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
         </div>
         <div className={`payment-summary ${paymentDiffCents === 0 ? "ok" : "mismatch"}`}>
           <span>
-            Soma: <strong>{formatCurrency(paymentSumCents)}</strong> /{" "}
-            {formatCurrency(order.totalCents)}
+            Soma:&nbsp;<strong>{formatCurrency(paymentSumCents)}</strong>&nbsp;/&nbsp;
+            <strong>{formatCurrency(order.totalCents)}</strong>
           </span>
-          {paymentDiffCents !== 0 ? (
-            <span className="muted small">
-              {paymentDiffCents > 0
-                ? `Faltam ${formatCurrency(paymentDiffCents)}`
-                : `Sobra ${formatCurrency(Math.abs(paymentDiffCents))}`}
-            </span>
+          {paymentDiffCents === 0 ? (
+            <strong>Valores conferem ✓</strong>
           ) : null}
         </div>
+        {paymentDiffCents > 0 ? (
+          <div className="payment-alert payment-alert--warn">
+            <strong>Faltam {formatCurrency(paymentDiffCents)}.</strong>{" "}
+            Ajuste os valores ou selecione outra forma de pagamento para completar o total.
+          </div>
+        ) : null}
+        {paymentDiffCents < 0 ? (
+          <div className="payment-alert payment-alert--warn">
+            <strong>Sobra {formatCurrency(Math.abs(paymentDiffCents))}.</strong>{" "}
+            A soma excede o total do pedido — revise os valores informados.
+          </div>
+        ) : null}
         <p className="muted small">
           Ao confirmar, o pedido sera marcado como <strong>Pago</strong> e em seguida{" "}
           <strong>Entregue</strong>.
