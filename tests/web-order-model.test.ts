@@ -118,11 +118,14 @@ test("customerAddressInputSchema rejeita CEP com tamanho errado", async () => {
 });
 
 test("isValidTransition aceita transições válidas e rejeita inválidas", () => {
-  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PAID), true);
+  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PREPARING), true);
   assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.CANCELLED), true);
-  assert.equal(isValidTransition(WebOrderStatus.PAID, WebOrderStatus.PREPARING), true);
-  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.DELIVERED), true);
-  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.PAID), false);
+  assert.equal(isValidTransition(WebOrderStatus.PENDING_PAYMENT, WebOrderStatus.PAID), false);
+  assert.equal(isValidTransition(WebOrderStatus.PREPARING, WebOrderStatus.READY), true);
+  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.OUT_FOR_DELIVERY), true);
+  assert.equal(isValidTransition(WebOrderStatus.READY, WebOrderStatus.DELIVERED), false);
+  assert.equal(isValidTransition(WebOrderStatus.OUT_FOR_DELIVERY, WebOrderStatus.PAID), true);
+  assert.equal(isValidTransition(WebOrderStatus.PAID, WebOrderStatus.DELIVERED), true);
   assert.equal(isValidTransition(WebOrderStatus.DELIVERED, WebOrderStatus.CANCELLED), false);
   assert.equal(isValidTransition(WebOrderStatus.CANCELLED, WebOrderStatus.PAID), false);
 });
@@ -160,18 +163,68 @@ test("webOrderStatusTransitionSchema exige nota quando cancelando", async () => 
 
 test("webOrderStatusTransitionSchema aceita transição não-cancelamento sem nota", async () => {
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
-    toStatus: WebOrderStatus.PAID,
+    toStatus: WebOrderStatus.PREPARING,
   });
-  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.equal(parsed.toStatus, WebOrderStatus.PREPARING);
 });
 
 test("webOrderStatusTransitionSchema aceita notes: null em transição não-cancelamento", async () => {
   const parsed = await webOrderStatusTransitionSchema.parseAsync({
-    toStatus: WebOrderStatus.PAID,
+    toStatus: WebOrderStatus.PREPARING,
     notes: null,
   });
-  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.equal(parsed.toStatus, WebOrderStatus.PREPARING);
   assert.equal(parsed.notes, null);
+});
+
+test("webOrderStatusTransitionSchema exige payments ao marcar como pago", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({ toStatus: WebOrderStatus.PAID }),
+  );
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      payments: [],
+    }),
+  );
+  const parsed = await webOrderStatusTransitionSchema.parseAsync({
+    toStatus: WebOrderStatus.PAID,
+    payments: [{ method: "cash", amountCents: 5000 }],
+  });
+  assert.equal(parsed.toStatus, WebOrderStatus.PAID);
+  assert.deepEqual(parsed.payments, [{ method: "cash", amountCents: 5000 }]);
+});
+
+test("webOrderStatusTransitionSchema aceita varias formas com valores", async () => {
+  const parsed = await webOrderStatusTransitionSchema.parseAsync({
+    toStatus: WebOrderStatus.PAID,
+    payments: [
+      { method: "cash", amountCents: 3000 },
+      { method: "pix", amountCents: 2000 },
+    ],
+  });
+  assert.equal(parsed.payments?.length, 2);
+});
+
+test("webOrderStatusTransitionSchema rejeita forma de pagamento duplicada", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      payments: [
+        { method: "cash", amountCents: 1000 },
+        { method: "cash", amountCents: 500 },
+      ],
+    }),
+  );
+});
+
+test("webOrderStatusTransitionSchema rejeita amountCents <= 0", async () => {
+  await assert.rejects(
+    webOrderStatusTransitionSchema.parseAsync({
+      toStatus: WebOrderStatus.PAID,
+      payments: [{ method: "cash", amountCents: 0 }],
+    }),
+  );
 });
 
 test("webOrderCreateInputSchema exige pelo menos um item", async () => {

@@ -1,5 +1,6 @@
 import {
   DeliveryMode,
+  PaymentMethod,
   Prisma,
   WebOrderStatus,
   WebOrderStatusActorType,
@@ -35,6 +36,9 @@ const webOrderInclude = {
   statusLogs: {
     orderBy: { createdAt: "asc" as const },
     include: { actor: true },
+  },
+  payments: {
+    orderBy: { createdAt: "asc" as const },
   },
 };
 
@@ -92,6 +96,12 @@ function toWebOrderDto(order: WebOrderWithRelations): WebOrderDto {
     addressReference: order.addressReference,
     items: order.items.map(toItemDto),
     statusLogs: order.statusLogs.map(toStatusLogDto),
+    payments: order.payments.map((p) => ({
+      id: p.id,
+      method: p.method,
+      amountCents: p.amountCents,
+      createdAt: p.createdAt.toISOString(),
+    })),
     statusUpdatedAt: order.statusUpdatedAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -345,12 +355,15 @@ export async function getWebOrder(orderId: string): Promise<WebOrderDto | null> 
   return order ? toWebOrderDto(order) : null;
 }
 
+type WebOrderPaymentInput = { method: PaymentMethod; amountCents: number };
+
 export async function updateWebOrderStatus(
   orderId: string,
   toStatus: WebOrderStatus,
   actorUserId: string,
   ipAddress: string,
   notes?: string | null,
+  payments?: WebOrderPaymentInput[] | null,
 ): Promise<WebOrderDto> {
   const result = await db.$transaction(async (tx) => {
     const order = await tx.webOrder.findUnique({
@@ -370,6 +383,36 @@ export async function updateWebOrderStatus(
         { from: order.status, to: toStatus },
         "Atualize a tela para ver o status atual do pedido.",
       );
+    }
+
+    if (toStatus === WebOrderStatus.PAID) {
+      if (!payments || payments.length === 0) {
+        throw new AppError(
+          400,
+          "missing_payment_methods",
+          "Informe pelo menos uma forma de pagamento.",
+        );
+      }
+      const sum = payments.reduce((acc, p) => acc + p.amountCents, 0);
+      if (sum !== order.totalCents) {
+        throw new AppError(
+          400,
+          "payment_sum_mismatch",
+          `A soma dos pagamentos (${sum}) nao bate com o total do pedido (${order.totalCents}).`,
+          { sum, totalCents: order.totalCents },
+        );
+      }
+      const methods = new Set<string>();
+      for (const p of payments) {
+        if (methods.has(p.method)) {
+          throw new AppError(
+            400,
+            "duplicate_payment_method",
+            `Forma de pagamento '${p.method}' duplicada.`,
+          );
+        }
+        methods.add(p.method);
+      }
     }
 
     if (toStatus === WebOrderStatus.CANCELLED && cancelingRevertsStock(order.status)) {
@@ -393,20 +436,54 @@ export async function updateWebOrderStatus(
       }
     }
 
+    const now = new Date();
+    const isPaidWithAutoDelivery = toStatus === WebOrderStatus.PAID;
+    const finalStatus = isPaidWithAutoDelivery ? WebOrderStatus.DELIVERED : toStatus;
+
+    const statusLogsCreate: Array<{
+      fromStatus: WebOrderStatus;
+      toStatus: WebOrderStatus;
+      actorUserId: string;
+      actorType: typeof WebOrderStatusActorType.admin | typeof WebOrderStatusActorType.system;
+      notes: string | null;
+    }> = [
+      {
+        fromStatus: order.status,
+        toStatus,
+        actorUserId,
+        actorType: WebOrderStatusActorType.admin,
+        notes: notes ?? null,
+      },
+    ];
+
+    if (isPaidWithAutoDelivery) {
+      statusLogsCreate.push({
+        fromStatus: WebOrderStatus.PAID,
+        toStatus: WebOrderStatus.DELIVERED,
+        actorUserId,
+        actorType: WebOrderStatusActorType.system,
+        notes: "Entrega registrada automaticamente após pagamento.",
+      });
+    }
+
     return tx.webOrder.update({
       where: { id: orderId },
       data: {
-        status: toStatus,
-        statusUpdatedAt: new Date(),
-        statusLogs: {
-          create: {
-            fromStatus: order.status,
-            toStatus,
-            actorUserId,
-            actorType: WebOrderStatusActorType.admin,
-            notes: notes ?? null,
-          },
-        },
+        status: finalStatus,
+        statusUpdatedAt: now,
+        ...(toStatus === WebOrderStatus.PAID && payments
+          ? {
+              payments: {
+                createMany: {
+                  data: payments.map((p) => ({
+                    method: p.method,
+                    amountCents: p.amountCents,
+                  })),
+                },
+              },
+            }
+          : {}),
+        statusLogs: { create: statusLogsCreate },
       },
       include: webOrderInclude,
     });
@@ -418,10 +495,15 @@ export async function updateWebOrderStatus(
     entityType: "web_order",
     entityId: orderId,
     ipAddress,
-    metadata: { toStatus, notes: notes ?? null },
+    metadata: {
+      toStatus,
+      notes: notes ?? null,
+      payments: payments ?? null,
+      autoDelivered: toStatus === WebOrderStatus.PAID,
+    },
   });
 
-  logger.info("web_order_status_changed", { orderId, toStatus });
+  logger.info("web_order_status_changed", { orderId, toStatus, finalStatus: result.status });
   return toWebOrderDto(result);
 }
 

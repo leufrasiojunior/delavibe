@@ -7,10 +7,11 @@ import { type WebOrderDto } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando pagamento",
+  PENDING_PAYMENT: "Recebido",
   PAID: "Pago",
   PREPARING: "Em preparo",
   READY: "Pronto",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Entregue",
   CANCELLED: "Cancelado",
 };
