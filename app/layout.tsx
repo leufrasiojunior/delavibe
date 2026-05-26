@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto } from "next/font/google";
 import type { ReactNode } from "react";
 
@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   title: "Dela's Vibe PDV",
   description: "PDV local com comandas, estoque e histórico de vendas.",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#c92f88",
 };
 
