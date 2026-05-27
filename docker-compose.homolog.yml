@@ -1,6 +1,7 @@
 # Homolog: igual produção (stack apenas da aplicação), mas com porta
 # host exposta para acesso direto (sem precisar de proxy/Traefik).
-# O banco roda em stack separado — DATABASE_URL aponta pra URL interna dele.
+# O banco roda como recurso separado no Coolify — DATABASE_URL aponta
+# pra URL interna dele.
 services:
   app:
     build:

@@ -2,13 +2,15 @@
 
 ## Arquitetura
 
-A aplicação e o banco são deployados como **stacks separados** (em produção/homolog), mas dentro do **mesmo projeto Coolify**. A comunicação acontece via DNS interno do Coolify (não via subdomínio).
+A aplicação e o banco são deployados como **recursos separados** (em produção/homolog), mas dentro do **mesmo projeto Coolify**. A comunicação acontece via DNS interno do Coolify (não via subdomínio).
 
 ```
 Projeto Coolify
-├── Stack: delavibe-db       (docker-compose.db.yml)        → expõe postgres:5432 interno
-└── Stack: delavibe-app      (docker-compose.coolify.yml)   → conecta via DATABASE_URL apontando pro nome interno do DB
+├── Recurso: Postgres        (criado pela UI do Coolify "+ New Resource > Database > PostgreSQL") → expõe internamente porta 5432
+└── Stack:   delavibe-app    (docker-compose.coolify.yml) → conecta via DATABASE_URL apontando pro nome interno do recurso
 ```
+
+O recurso de DB é criado direto na UI do Coolify (sem compose customizado nosso) — assim ele ganha gerenciamento nativo de backup/restore/escala pela própria interface.
 
 ### Por que separado?
 - Deploy do app não toca no banco (mais seguro).
@@ -28,14 +30,10 @@ Projeto Coolify
 
 ## Variáveis de ambiente obrigatórias (produção)
 
-No stack **delavibe-db**:
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_DB`
+No **recurso Postgres** (Coolify UI configura): credenciais (user/password/db) — o Coolify expõe a URL interna pronta.
 
 No stack **delavibe-app**:
-- `DATABASE_URL` = `postgresql://<user>:<password>@<nome-interno-do-servico-db>:5432/<dbname>?schema=public`
-  - O `<nome-interno-do-servico-db>` é o que o Coolify atribui ao serviço `postgres` do stack DB (ver na UI do Coolify).
+- `DATABASE_URL` = a URL interna fornecida pelo recurso Postgres do Coolify (algo como `postgresql://<user>:<password>@<nome-interno>:5432/<dbname>?schema=public`).
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (gerar uma vez com `npx tsx scripts/generate-vapid-keys.ts`)
 - `NEXT_PUBLIC_STORE_NAME`, `NEXT_PUBLIC_STORE_ADDRESS`, `NEXT_PUBLIC_STORE_PHONE`
 
@@ -69,14 +67,14 @@ cat backups/delavibe-XXXX.sql | docker exec -i <nome-container-postgres> \
    docker exec <container-postgres-atual> pg_dump -U $POSTGRES_USER $POSTGRES_DB \
      > delavibe-pre-split.sql
    ```
-2. **Suba o stack novo do DB** (`docker-compose.db.yml`) no projeto Coolify com as mesmas credenciais do antigo.
-3. **Restore do dump** no novo stack:
+2. **Crie um recurso Postgres no projeto Coolify** (UI: `+ New Resource > Database > PostgreSQL`) com as mesmas credenciais do antigo.
+3. **Restore do dump** no novo recurso:
    ```bash
    cat delavibe-pre-split.sql | docker exec -i <novo-container-postgres> \
      psql -U $POSTGRES_USER -d $POSTGRES_DB
    ```
-4. **Configure `DATABASE_URL`** no stack do app apontando pro novo serviço.
-5. **Suba o stack novo do app** (`docker-compose.coolify.yml`). O entrypoint roda `prisma migrate deploy` automaticamente — não deve aplicar nada novo (estado já está no dump).
+4. **Configure `DATABASE_URL`** no stack do app com a URL interna do novo recurso Postgres (a UI do Coolify mostra a URL pronta).
+5. **Suba o stack novo do app** (`docker-compose.coolify.yml`). O entrypoint roda `prisma migrate deploy` automaticamente — não deve aplicar nada novo (estado já vem do dump).
 6. **Smoke**: `/healthz`, login admin, ver pedido existente, etc.
 7. **Depois de validar**: derrubar o stack antigo (app+db unificado).
 

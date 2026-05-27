@@ -1,8 +1,8 @@
 # Coolify (producao): stack apenas da aplicacao.
-# O banco Postgres roda em um stack SEPARADO no mesmo projeto Coolify
-# (ver docker-compose.db.yml) e é alcançado via DNS interno do Coolify
-# (ex.: postgres-<stack-id>:5432). DATABASE_URL deve ser configurada
-# nas env vars do Coolify para este stack apontando para a URL interna.
+# O banco Postgres roda como recurso SEPARADO no mesmo projeto Coolify
+# (criado pela UI: + New Resource > Database > PostgreSQL) e é alcançado
+# via DNS interno do Coolify. DATABASE_URL deve ser configurada nas env
+# vars deste stack apontando para a URL interna do recurso Postgres.
 #
 # Migrations rodam automaticamente no entrypoint do container do app.
 # Seed é manual: docker exec <container> npm run db:seed
