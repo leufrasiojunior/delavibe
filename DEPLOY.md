@@ -17,6 +17,19 @@ O recurso de DB é criado direto na UI do Coolify (sem compose customizado nosso
 - O banco raramente reinicia; o app deploya com frequência.
 - Backup, scale e versionamento do banco viram operações independentes.
 
+## Validação de env vars no boot
+
+O entrypoint do container valida TODAS as env vars antes de aplicar migrations e iniciar o servidor. Se faltar variável obrigatória ou houver valor inválido, o container **estoura com exit code 1** e imprime exatamente o que está errado:
+
+```
+[env] Configuracao de ambiente invalida — corrija os itens abaixo e reinicie:
+  - DATABASE_URL: DATABASE_URL e obrigatoria (nao definida)
+  - NEXT_PUBLIC_STORE_NAME: NEXT_PUBLIC_STORE_NAME e obrigatorio (nao definida)
+  - SESSION_TTL_HOURS: SESSION_TTL_HOURS deve ser um numero inteiro positivo (recebido: "abc")
+```
+
+Schema completo em [lib/env.ts](lib/env.ts). Variáveis VAPID são opcionais como grupo, mas se uma for definida, todas precisam estar.
+
 ## Migrations e seed
 
 - **Migrations**: rodam automaticamente no `ENTRYPOINT` do container do app (`scripts/entrypoint.sh` → `prisma migrate deploy` → `npm run start`). Toda vez que o app sobe ele aplica migrations pendentes antes de aceitar tráfego.
