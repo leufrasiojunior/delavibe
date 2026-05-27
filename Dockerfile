@@ -33,6 +33,9 @@ COPY --from=builder /app/prisma ./prisma
 # antes de qualquer migration). lib/env.ts contém o schema Zod.
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/lib/env.ts ./lib/env.ts
+# prisma.config.ts é obrigatório no Prisma 7 — define datasource.url
+# para `prisma migrate deploy` (schema.prisma 7+ não aceita mais `url`).
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh \
   && groupadd -r nodejs && useradd -r -g nodejs nextjs \
