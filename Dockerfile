@@ -29,6 +29,10 @@ COPY --from=builder /app/package.json ./package.json
 # `prisma migrate deploy` rodar no entrypoint e para `npm run db:seed`
 # manual via `docker exec`).
 COPY --from=builder /app/prisma ./prisma
+# scripts/validate-env.ts roda no entrypoint via tsx (valida envs
+# antes de qualquer migration). lib/env.ts contém o schema Zod.
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/lib/env.ts ./lib/env.ts
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh \
   && groupadd -r nodejs && useradd -r -g nodejs nextjs \

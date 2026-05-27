@@ -3,7 +3,7 @@
 // imprime mensagem clara e encerra com exit code 1 (impede o boot).
 import "dotenv/config";
 
-import { assertEnv } from "@/lib/env";
+import { assertEnv } from "../lib/env";
 
 assertEnv();
 process.stdout.write("[env] Variaveis de ambiente validadas com sucesso.\n");
