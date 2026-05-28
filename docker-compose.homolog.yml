@@ -10,7 +10,7 @@ services:
       target: runner
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://delavibe:28fca2c505be8a19339822f212d901900bba6f0d16798fc9@postgres:5432/delavibe?schema=public
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (aponte para a URL interna do stack de DB)}
       NODE_ENV: production
       SESSION_COOKIE_SECURE: "true"
       SESSION_COOKIE_NAME: __Host-pdv_session
