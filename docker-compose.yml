@@ -1,5 +1,10 @@
 # Ambiente exclusivo para desenvolvimento/local.
 # Não use este arquivo como base de produção.
+#
+# Subir: npm run up  (ou: docker compose up -d)
+# Aplicar migrations: o entrypoint do container app roda
+#   `prisma migrate deploy` automaticamente toda vez que o app inicia.
+# Seed manual (não automático): docker compose exec app npm run db:seed
 name: delavibe
 
 services:
@@ -44,57 +49,12 @@ services:
       TZ: America/Sao_Paulo
       UPLOADS_DIR: /app/uploads
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     ports:
       - "3010:3000"
     volumes:
       - uploads_data:/app/uploads
-
-  migrate:
-    image: delavibe/migrate:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: builder
-    restart: "no"
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
-      SESSION_COOKIE_NAME: pdv_session
-      SESSION_COOKIE_SECURE: "false"
-      CSRF_COOKIE_NAME: pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: pdv_csrf
-      SESSION_TTL_HOURS: "12"
-      APP_TIMEZONE: America/Sao_Paulo
-      NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
-      TZ: America/Sao_Paulo
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["npm", "run", "db:migrate"]
-
-  seed:
-    image: delavibe/seed:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: builder
-    restart: "no"
-    profiles: ["seed"]
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
-      SESSION_COOKIE_NAME: pdv_session
-      SESSION_COOKIE_SECURE: "false"
-      CSRF_COOKIE_NAME: pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: pdv_csrf
-      SESSION_TTL_HOURS: "12"
-      APP_TIMEZONE: America/Sao_Paulo
-      NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
-      TZ: America/Sao_Paulo
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    command: ["npm", "run", "db:seed"]
 
 volumes:
   postgres_data:
