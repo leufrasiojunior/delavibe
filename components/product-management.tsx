@@ -2,6 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import {
+  Download,
+  Edit3,
+  ImageIcon,
+  ImagePlus,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { apiFetch, apiUpload } from "@/lib/api/client";
 import { productSchema, type ProductDto } from "@/lib/schemas/product";
@@ -195,7 +205,14 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           if (selectedFile) {
             try {
               await uploadImageForProduct(savedProduct.id, selectedFile);
-              toast.success("Imagem enviada com sucesso.");
+              toast.success(
+                form.id
+                  ? "Produto atualizado e imagem enviada com sucesso."
+                  : "Produto cadastrado e imagem enviada com sucesso.",
+              );
+              resetForm();
+              router.refresh();
+              return;
             } catch (uploadError: unknown) {
               const message =
                 uploadError instanceof Error
@@ -282,6 +299,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
           </div>
           {form.id ? (
             <button className="button button-secondary" type="button" onClick={resetForm}>
+              <Plus size={16} aria-hidden />
               Novo produto
             </button>
           ) : null}
@@ -407,6 +425,11 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
 
                 <div className="product-image-upload-controls">
                   <label className="button button-secondary compact" htmlFor={fileInputId}>
+                    {hasExistingImage || showPreview ? (
+                      <ImageIcon size={14} aria-hidden />
+                    ) : (
+                      <ImagePlus size={14} aria-hidden />
+                    )}
                     {hasExistingImage || showPreview ? "Trocar imagem" : "Selecionar imagem"}
                   </label>
                   <input
@@ -424,6 +447,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                       type="button"
                       onClick={clearSelectedFile}
                     >
+                      <X size={14} aria-hidden />
                       Cancelar seleção
                     </button>
                   ) : null}
@@ -435,6 +459,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                       onClick={handleRemoveImage}
                       disabled={isPending}
                     >
+                      <Trash2 size={14} aria-hidden />
                       Remover imagem
                     </button>
                   ) : null}
@@ -454,6 +479,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
 
 
             <button className="button button-primary" type="submit" disabled={isPending}>
+              {form.id ? <Save size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
               {isPending ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar produto"}
             </button>
           </form>
@@ -471,6 +497,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
             <h2>{products.length} itens disponíveis</h2>
           </div>
           <a className="button button-secondary" href="/api/products/export">
+            <Download size={16} aria-hidden />
             Exportar CSV
           </a>
         </div>
@@ -519,6 +546,7 @@ export function ProductManagement({ products, canManage }: ProductManagementProp
                         type="button"
                         onClick={() => fillForm(product)}
                       >
+                        <Edit3 size={14} aria-hidden />
                         Editar
                       </button>
                     </td>

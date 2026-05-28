@@ -1,4 +1,4 @@
-import { DeliveryMode, WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
+import { DeliveryMode, PaymentMethod, WebOrderStatus, WebOrderStatusActorType } from "@prisma/client";
 import { z } from "zod";
 
 import { customerAddressInputSchema } from "@/lib/schemas/customer-address";
@@ -10,6 +10,7 @@ import {
 } from "@/lib/schemas/string-fields";
 
 const webOrderStatusSchema = z.nativeEnum(WebOrderStatus);
+const paymentMethodSchema = z.nativeEnum(PaymentMethod);
 const webOrderStatusActorTypeSchema = z.nativeEnum(WebOrderStatusActorType);
 const deliveryModeSchema = z.nativeEnum(DeliveryMode);
 
@@ -92,10 +93,19 @@ export const webOrderPublicCreateInputSchema = z
     }
   });
 
+export const webOrderPaymentInputSchema = z.object({
+  method: paymentMethodSchema,
+  amountCents: z
+    .number()
+    .int("O valor deve ser inteiro (centavos).")
+    .min(1, "O valor deve ser maior que zero."),
+});
+
 export const webOrderStatusTransitionSchema = z
   .object({
     toStatus: webOrderStatusSchema,
-    notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").optional(),
+    notes: z.string().max(280, "A nota deve ter no máximo 280 caracteres.").nullish(),
+    payments: z.array(webOrderPaymentInputSchema).nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.toStatus === WebOrderStatus.CANCELLED) {
@@ -106,6 +116,29 @@ export const webOrderStatusTransitionSchema = z
           path: ["notes"],
           message: "Informe o motivo do cancelamento (mínimo 3 caracteres).",
         });
+      }
+    }
+    if (data.toStatus === WebOrderStatus.PAID) {
+      const payments = data.payments ?? [];
+      if (payments.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["payments"],
+          message: "Informe pelo menos uma forma de pagamento.",
+        });
+        return;
+      }
+      const methods = new Set<string>();
+      for (let i = 0; i < payments.length; i += 1) {
+        const p = payments[i];
+        if (methods.has(p.method)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payments", i, "method"],
+            message: `Forma de pagamento '${p.method}' duplicada.`,
+          });
+        }
+        methods.add(p.method);
       }
     }
   });
@@ -120,9 +153,10 @@ export const webOrderListFiltersSchema = z.object({
 
 const WEB_ORDER_ACTIVE_STATUSES = [
   WebOrderStatus.PENDING_PAYMENT,
-  WebOrderStatus.PAID,
   WebOrderStatus.PREPARING,
   WebOrderStatus.READY,
+  WebOrderStatus.OUT_FOR_DELIVERY,
+  WebOrderStatus.PAID,
 ] as const;
 
 const WEB_ORDER_HISTORY_STATUSES = [
@@ -219,6 +253,14 @@ export const webOrderSchema = z.object({
   addressReference: z.string().nullable(),
   items: z.array(webOrderItemSchema),
   statusLogs: z.array(webOrderStatusLogSchema),
+  payments: z.array(
+    z.object({
+      id: z.string(),
+      method: paymentMethodSchema,
+      amountCents: z.number().int(),
+      createdAt: z.string(),
+    }),
+  ),
   statusUpdatedAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -226,6 +268,7 @@ export const webOrderSchema = z.object({
 
 export type WebOrderCreateInput = z.infer<typeof webOrderCreateInputSchema>;
 export type WebOrderStatusTransition = z.infer<typeof webOrderStatusTransitionSchema>;
+export type WebOrderPaymentInput = z.infer<typeof webOrderPaymentInputSchema>;
 export type WebOrderListFilters = z.infer<typeof webOrderListFiltersSchema>;
 export type WebOrderDto = z.infer<typeof webOrderSchema>;
 export type WebOrderItemDto = z.infer<typeof webOrderItemSchema>;

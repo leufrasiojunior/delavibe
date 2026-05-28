@@ -2,46 +2,35 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { CircleDollarSign, RotateCcw, XCircle } from "lucide-react";
 
-import { WebOrderStatus } from "@prisma/client";
+import { PaymentMethod, WebOrderStatus } from "@prisma/client";
 
+import { Modal } from "@/components/modal";
 import { apiFetch } from "@/lib/api/client";
 import {
   webOrderSchema,
   type WebOrderDto,
 } from "@/lib/schemas/web-order";
-import { formatCurrency } from "@/lib/utils/money";
+import {
+  centsToCurrencyInput,
+  formatCurrency,
+  formatCurrencyInput,
+  parseCurrencyInputToCents,
+} from "@/lib/utils/money";
 import { formatDisplayDate, formatTimeAgo } from "@/lib/utils/date";
 import { formatPhoneBr } from "@/lib/utils/strings";
 import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHOD_ORDER,
+  STATUS_BADGE_CLASS,
+  STATUS_LABELS,
+  TRANSITION_ICONS,
+  TRANSITION_LABELS,
+} from "@/lib/web-order-ui-config";
 import { useToast } from "@/components/toast";
 
-const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando pagamento",
-  PAID: "Pago",
-  PREPARING: "Em preparo",
-  READY: "Pronto",
-  DELIVERED: "Entregue",
-  CANCELLED: "Cancelado",
-};
-
-const STATUS_BADGE_CLASS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "badge warning",
-  PAID: "badge neutral",
-  PREPARING: "badge neutral",
-  READY: "badge success",
-  DELIVERED: "badge success",
-  CANCELLED: "badge danger",
-};
-
-const TRANSITION_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Reabrir",
-  PAID: "Marcar como pago",
-  PREPARING: "Iniciar preparo",
-  READY: "Marcar como pronto",
-  DELIVERED: "Marcar como entregue",
-  CANCELLED: "Cancelar pedido",
-};
 
 function isAnonymized(order: WebOrderDto) {
   return order.customerEmail.startsWith("deleted-");
@@ -60,6 +49,15 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const cancelDialogRef = useRef<HTMLDialogElement | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedMethods, setSelectedMethods] = useState<Set<PaymentMethod>>(new Set());
+  const [paymentInputs, setPaymentInputs] = useState<Record<PaymentMethod, string>>({
+    cash: "",
+    pix: "",
+    debit: "",
+    credit: "",
+  });
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     setMountedClientTime(new Date());
@@ -71,23 +69,35 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   );
 
   const nonCancelTransitions = allowedTransitions.filter(
-    (status) => status !== WebOrderStatus.CANCELLED,
+    // DELIVERED é transição automática após PAID — esconde o botão manual.
+    (status) => status !== WebOrderStatus.CANCELLED && status !== WebOrderStatus.DELIVERED,
   );
   const canCancel = allowedTransitions.includes(WebOrderStatus.CANCELLED);
 
-  function performTransition(toStatus: WebOrderStatus, notes?: string) {
+  function performTransition(
+    toStatus: WebOrderStatus,
+    options?: {
+      notes?: string;
+      payments?: { method: PaymentMethod; amountCents: number }[];
+    },
+  ) {
     startTransition(() => {
       void apiFetch(
         `/api/admin/web-orders/${order.id}/status`,
         {
           method: "PATCH",
-          body: JSON.stringify({ toStatus, notes: notes ?? null }),
+          body: JSON.stringify({
+            toStatus,
+            notes: options?.notes ?? null,
+            payments: options?.payments ?? null,
+          }),
         },
         webOrderSchema,
       )
         .then((updated) => {
           setOrder(updated);
-          toast.success(`Status atualizado para ${STATUS_LABELS[toStatus]}.`);
+          const successLabel = STATUS_LABELS[updated.status];
+          toast.success(`Status atualizado para ${successLabel}.`);
           router.refresh();
         })
         .catch((caught: unknown) => {
@@ -98,6 +108,88 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           toast.error(message);
         });
     });
+  }
+
+  function openPaymentModal() {
+    // Pre-seleciona Dinheiro com o total — admin pode trocar/redistribuir.
+    setSelectedMethods(new Set(["cash"]));
+    setPaymentInputs({
+      cash: centsToCurrencyInput(order.totalCents),
+      pix: "",
+      debit: "",
+      credit: "",
+    });
+    setPaymentError(null);
+    setShowPaymentModal(true);
+  }
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    setPaymentError(null);
+    setSelectedMethods((currentSet) => {
+      const next = new Set(currentSet);
+      if (next.has(method)) {
+        next.delete(method);
+        setPaymentInputs((inputs) => ({ ...inputs, [method]: "" }));
+      } else {
+        next.add(method);
+        const sumOthers = Array.from(next)
+          .filter((m) => m !== method)
+          .reduce(
+            (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+            0,
+          );
+        const remaining = Math.max(0, order.totalCents - sumOthers);
+        setPaymentInputs((inputs) => ({
+          ...inputs,
+          [method]: centsToCurrencyInput(remaining),
+        }));
+      }
+      return next;
+    });
+  }
+
+  function setPaymentAmount(method: PaymentMethod, raw: string) {
+    setPaymentError(null);
+    setPaymentInputs((inputs) => ({ ...inputs, [method]: formatCurrencyInput(raw) }));
+  }
+
+  const paymentSumCents = (Array.from(selectedMethods) as PaymentMethod[]).reduce(
+    (acc, m) => acc + (parseCurrencyInputToCents(paymentInputs[m]) ?? 0),
+    0,
+  );
+  const paymentDiffCents = order.totalCents - paymentSumCents;
+
+  function submitPayment() {
+    if (selectedMethods.size === 0) {
+      setPaymentError("Selecione pelo menos uma forma de pagamento.");
+      return;
+    }
+    const entries: { method: PaymentMethod; amountCents: number }[] = [];
+    for (const m of Array.from(selectedMethods) as PaymentMethod[]) {
+      const cents = parseCurrencyInputToCents(paymentInputs[m]);
+      if (cents === null || cents <= 0) {
+        setPaymentError(`Informe o valor pago em ${PAYMENT_METHOD_LABELS[m]}.`);
+        return;
+      }
+      entries.push({ method: m, amountCents: cents });
+    }
+    const sum = entries.reduce((a, e) => a + e.amountCents, 0);
+    if (sum !== order.totalCents) {
+      setPaymentError(
+        `A soma (${formatCurrency(sum)}) precisa bater com o total (${formatCurrency(order.totalCents)}).`,
+      );
+      return;
+    }
+    setShowPaymentModal(false);
+    performTransition(WebOrderStatus.PAID, { payments: entries });
+  }
+
+  function handleTransitionClick(toStatus: WebOrderStatus) {
+    if (toStatus === WebOrderStatus.PAID) {
+      openPaymentModal();
+      return;
+    }
+    performTransition(toStatus);
   }
 
   function openCancelDialog() {
@@ -119,7 +211,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
     }
 
     closeCancelDialog();
-    performTransition(WebOrderStatus.CANCELLED, trimmed);
+    performTransition(WebOrderStatus.CANCELLED, { notes: trimmed });
   }
 
   const customerLabel = isAnonymized(order) ? "Cliente removido" : order.customerName;
@@ -142,17 +234,21 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           </div>
 
           <div className="button-row">
-            {nonCancelTransitions.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className="button button-primary compact"
-                onClick={() => performTransition(status)}
-                disabled={isPending}
-              >
-                {TRANSITION_LABELS[status]}
-              </button>
-            ))}
+            {nonCancelTransitions.map((status) => {
+              const Icon = TRANSITION_ICONS[status];
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  className="button button-primary compact"
+                  onClick={() => handleTransitionClick(status)}
+                  disabled={isPending}
+                >
+                  <Icon size={14} aria-hidden />
+                  {TRANSITION_LABELS[status]}
+                </button>
+              );
+            })}
             {canCancel ? (
               <button
                 type="button"
@@ -160,6 +256,7 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
                 onClick={openCancelDialog}
                 disabled={isPending}
               >
+                <XCircle size={14} aria-hidden />
                 Cancelar pedido
               </button>
             ) : null}
@@ -267,6 +364,18 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           <span>Total</span>
           <strong>{formatCurrency(order.totalCents)}</strong>
         </div>
+        {order.payments.length > 0 ? (
+          <div className="web-order-payments">
+            <strong>Pagamento:</strong>
+            <ul>
+              {order.payments.map((p) => (
+                <li key={p.id}>
+                  {PAYMENT_METHOD_LABELS[p.method]}: {formatCurrency(p.amountCents)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {order.notes ? <p className="muted">Notas do cliente: {order.notes}</p> : null}
       </section>
 
@@ -310,11 +419,97 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
               Voltar
             </button>
             <button type="submit" className="button button-primary compact">
+              <XCircle size={14} aria-hidden />
               Confirmar cancelamento
             </button>
           </div>
         </form>
       </dialog>
+
+      <Modal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        title="Marcar como pago"
+        size="sm"
+      >
+        <p className="muted">
+          Selecione as formas de pagamento e os valores. A soma precisa fechar com o total do
+          pedido (<strong>{formatCurrency(order.totalCents)}</strong>).
+        </p>
+        <div className="payment-breakdown-grid">
+          {PAYMENT_METHOD_ORDER.map((method) => {
+            const isChecked = selectedMethods.has(method);
+            return (
+              <div key={method} className="payment-breakdown-row">
+                <label className="payment-method-option">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => togglePaymentMethod(method)}
+                  />
+                  <span>{PAYMENT_METHOD_LABELS[method]}</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="payment-amount-input"
+                  placeholder="R$ 0,00"
+                  value={paymentInputs[method]}
+                  onChange={(event) => setPaymentAmount(method, event.target.value)}
+                  disabled={!isChecked}
+                  aria-label={`Valor pago em ${PAYMENT_METHOD_LABELS[method]}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className={`payment-summary ${paymentDiffCents === 0 ? "ok" : "mismatch"}`}>
+          <span>
+            Soma:&nbsp;<strong>{formatCurrency(paymentSumCents)}</strong>&nbsp;/&nbsp;
+            <strong>{formatCurrency(order.totalCents)}</strong>
+          </span>
+          {paymentDiffCents === 0 ? (
+            <strong>Valores conferem ✓</strong>
+          ) : null}
+        </div>
+        {paymentDiffCents > 0 ? (
+          <div className="payment-alert payment-alert--warn">
+            <strong>Faltam {formatCurrency(paymentDiffCents)}.</strong>{" "}
+            Ajuste os valores ou selecione outra forma de pagamento para completar o total.
+          </div>
+        ) : null}
+        {paymentDiffCents < 0 ? (
+          <div className="payment-alert payment-alert--warn">
+            <strong>Sobra {formatCurrency(Math.abs(paymentDiffCents))}.</strong>{" "}
+            A soma excede o total do pedido — revise os valores informados.
+          </div>
+        ) : null}
+        <p className="muted small">
+          Ao confirmar, o pedido sera marcado como <strong>Pago</strong> e em seguida{" "}
+          <strong>Entregue</strong>.
+        </p>
+        {paymentError ? <p className="form-error compact">{paymentError}</p> : null}
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary compact"
+            onClick={() => setShowPaymentModal(false)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="button button-primary compact"
+            onClick={submitPayment}
+            disabled={
+              selectedMethods.size === 0 || paymentDiffCents !== 0 || isPending
+            }
+          >
+            <CircleDollarSign size={14} aria-hidden />
+            Confirmar pagamento
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

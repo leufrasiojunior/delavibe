@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, Check, CheckCircle2 } from "lucide-react";
 
 import { WebOrderStatus } from "@prisma/client";
 
@@ -6,10 +7,11 @@ import { type WebOrderDto } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando pagamento",
+  PENDING_PAYMENT: "Recebido",
   PAID: "Pago",
   PREPARING: "Em preparo",
   READY: "Pronto",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Entregue",
   CANCELLED: "Cancelado",
 };
@@ -31,21 +33,24 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
   const isPickup = !order.addressStreet;
   const shortNumber = order.id.slice(0, 8).toUpperCase();
 
+  const firstName = order.customerName?.split(" ")[0] ?? null;
+
   return (
     <section className="public-confirmation">
-      <div className="public-confirmation-header">
+      <div className="public-confirmation-hero">
         <div className="public-confirmation-check" aria-hidden>
-          ✓
+          <Check size={40} strokeWidth={3} />
         </div>
-        <p className="eyebrow">Tudo pronto!</p>
-        <h1>Recebemos o seu pedido, obrigado!</h1>
-        <p className="muted">
-          Anote o número do pedido caso precise nos contatar — também enviamos esta confirmação na tela.
-        </p>
+        <h1>Obrigado pelo seu pedido!</h1>
+        {firstName ? (
+          <p className="public-confirmation-greeting">{firstName}, recebemos seu pedido com sucesso.</p>
+        ) : (
+          <p className="public-confirmation-greeting">Recebemos seu pedido com sucesso.</p>
+        )}
         <p className="public-confirmation-number">
           Número do pedido: <strong>#{shortNumber}</strong>
         </p>
-        <p>
+        <p className="muted">
           Status atual: <strong>{STATUS_LABELS[order.status]}</strong>
         </p>
       </div>
@@ -105,6 +110,7 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
 
       <div className="button-row">
         <Link href="/" className="button button-primary">
+          <ArrowLeft size={16} aria-hidden />
           Voltar ao cardápio
         </Link>
       </div>

@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import {
+  BarChart3,
+  Boxes,
+  ClipboardList,
+  ExternalLink,
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+} from "lucide-react";
 
 import { LogoutButton } from "@/components/logout-button";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import type { AuthSession } from "@/lib/auth/session";
 
 type AppShellProps = {
@@ -12,19 +22,38 @@ type AppShellProps = {
   children: ReactNode;
 };
 
-const navigation = [
-  { href: "/admin/commandas", label: "Comandas" },
-  { href: "/admin/pedidos-web", label: "Pedidos web" },
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/products", label: "Produtos" },
-  { href: "/admin/stock", label: "Estoque" },
-  { href: "/admin/sales", label: "Vendas" },
-  { href: "/", label: "Ver cardápio público" },
+type NavIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+};
+
+const navigation: NavItem[] = [
+  { href: "/admin/commandas", label: "Comandas", icon: ClipboardList },
+  { href: "/admin/pedidos-web", label: "Pedidos web", icon: ShoppingBag },
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/products", label: "Produtos", icon: Package },
+  { href: "/admin/stock", label: "Estoque", icon: Boxes },
+  { href: "/admin/sales", label: "Vendas", icon: BarChart3 },
+  { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 export function AppShell({ session, children }: AppShellProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   // Fecha o drawer ao navegar entre rotas
   useEffect(() => {
@@ -45,20 +74,53 @@ export function AppShell({ session, children }: AppShellProps) {
     };
   }, [isMobileMenuOpen]);
 
-  // Fecha com tecla Escape
+  // Foco trap + restauração + Escape para fechar
   useEffect(() => {
     if (!isMobileMenuOpen) {
       return;
     }
 
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const sidebar = sidebarRef.current;
+    if (sidebar) {
+      const first = sidebar.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (first ?? sidebar).focus();
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        event.preventDefault();
         setIsMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const node = sidebarRef.current;
+      if (!node) return;
+      const focusables = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      if (focusables.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !node.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      const previous = previouslyFocusedRef.current;
+      if (previous && typeof previous.focus === "function") {
+        previous.focus();
+      }
+    };
   }, [isMobileMenuOpen]);
 
   return (
@@ -88,7 +150,13 @@ export function AppShell({ session, children }: AppShellProps) {
         />
       ) : null}
 
-      <aside id="app-sidebar" className="sidebar" aria-hidden={!isMobileMenuOpen ? undefined : false}>
+      <aside
+        ref={sidebarRef}
+        id="app-sidebar"
+        className="sidebar"
+        aria-hidden={!isMobileMenuOpen ? undefined : false}
+        tabIndex={-1}
+      >
         <div className="brand-panel">
           <div className="brand-orbit" />
           <p className="eyebrow">Adega Dela's Vibe</p>
@@ -99,11 +167,15 @@ export function AppShell({ session, children }: AppShellProps) {
         </div>
 
         <nav className="nav-links">
-          {navigation.map((item) => (
-            <Link key={item.href} href={item.href} className="nav-link">
-              {item.label}
-            </Link>
-          ))}
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="nav-link">
+                <Icon size={18} aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -111,6 +183,7 @@ export function AppShell({ session, children }: AppShellProps) {
             <strong>{session.user.name}</strong>
             <span>{session.user.role === "admin" ? "Administrador" : "Operador"}</span>
           </div>
+          <PushNotificationToggle />
           <LogoutButton />
         </div>
       </aside>

@@ -1,3 +1,5 @@
+import { Filter } from "lucide-react";
+
 import { requireServerSession } from "@/lib/auth/session";
 import { listClosedCommandas } from "@/lib/services/commanda-service";
 import { listOperators } from "@/lib/services/report-service";
@@ -78,6 +80,7 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
 
           <div className="field action-field">
             <button className="button button-primary" type="submit">
+              <Filter size={16} aria-hidden />
               Aplicar filtros
             </button>
           </div>

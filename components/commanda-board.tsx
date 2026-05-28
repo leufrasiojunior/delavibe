@@ -1,6 +1,15 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  CheckCircle2,
+  Circle,
+  ClipboardList,
+  Plus,
+  PlusCircle,
+  ShoppingCart,
+  Zap,
+} from "lucide-react";
 
 import { apiFetch } from "@/lib/api/client";
 import {
@@ -111,6 +120,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
   const [catalogCommandaSearch, setCatalogCommandaSearch] = useState("");
   const [managementCommandaSearch, setManagementCommandaSearch] = useState("");
   const [activeCatalogCommandaTab, setActiveCatalogCommandaTab] = useState<CommandaBoardStatusTab>("open");
+  const [activeCreationTab, setActiveCreationTab] = useState<"open" | "single">("open");
   const [activeManagementCommandaTab, setActiveManagementCommandaTab] = useState<CommandaBoardStatusTab>("open");
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, string>>({});
   const [itemQuantityDrafts, setItemQuantityDrafts] = useState<Record<string, string>>({});
@@ -906,6 +916,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
           type="button"
           onClick={() => setActiveMainTab("catalog")}
         >
+          <ShoppingCart size={16} aria-hidden />
           Catalogo/Atendimento
         </button>
         <button
@@ -913,6 +924,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
           type="button"
           onClick={() => setActiveMainTab("commandas")}
         >
+          <ClipboardList size={16} aria-hidden />
           Comandas
         </button>
       </div>
@@ -996,6 +1008,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                           onClick={() => handleAddItem(product)}
                           disabled={isPending || !product.isActive}
                         >
+                          <Plus size={14} aria-hidden />
                           Adicionar
                         </button>
                       {/* </div> */}
@@ -1012,62 +1025,108 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
 
           <section className="panel commanda-sidebar-panel">
             <div className="commanda-operational-tools">
-              <form className="stack commanda-creation-box" onSubmit={handleCreateCommanda}>
-                <div>
-                  <p className="eyebrow">Abrir comanda</p>
-                  <p className="muted">Crie uma comanda nomeada ou deixe sem nome para identificar depois.</p>
-                </div>
-
-                <label className="field">
-                  <span>Nome do cliente</span>
-                  <input
-                    value={newCustomerName}
-                    onChange={(event) => setNewCustomerName(event.target.value)}
-                    placeholder="Mesa, nome ou apelido"
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Observacoes</span>
-                  <textarea
-                    value={newNotes}
-                    onChange={(event) => setNewNotes(event.target.value)}
-                    rows={3}
-                    placeholder="Ex.: balcao, retirada, aniversario"
-                  />
-                </label>
-
-                <button className="button button-primary" type="submit" disabled={isPending}>
-                  {isPending ? "Criando..." : "Abrir comanda"}
-                </button>
-              </form>
-
-              <div className="stack commanda-creation-box">
-                <div>
-                  <p className="eyebrow">Venda avulsa</p>
-                  <p className="muted">
-                    Abre uma comanda pronta para venda rapida, mas continua editavel e pode ser renomeada depois.
-                  </p>
-                </div>
-
-                <label className="field">
-                  <span>Nome opcional</span>
-                  <input
-                    value={singleSaleCustomerName}
-                    onChange={(event) => setSingleSaleCustomerName(event.target.value)}
-                    placeholder={SINGLE_SALE_CUSTOMER_NAME}
-                  />
-                </label>
-
+              <div
+                className="commanda-creation-tabs"
+                role="tablist"
+                aria-label="Modos de criacao de comanda"
+              >
                 <button
-                  className="button button-secondary"
                   type="button"
-                  onClick={handleCreateSingleSale}
-                  disabled={isPending}
+                  role="tab"
+                  id="creation-tab-open"
+                  aria-selected={activeCreationTab === "open"}
+                  aria-controls="creation-panel-open"
+                  className={`commanda-creation-tab ${activeCreationTab === "open" ? "active" : ""}`}
+                  onClick={() => setActiveCreationTab("open")}
                 >
-                  {isPending ? "Criando..." : "Registrar venda avulsa"}
+                  <PlusCircle size={14} aria-hidden />
+                  Abrir comanda
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="creation-tab-single"
+                  aria-selected={activeCreationTab === "single"}
+                  aria-controls="creation-panel-single"
+                  className={`commanda-creation-tab ${activeCreationTab === "single" ? "active" : ""}`}
+                  onClick={() => setActiveCreationTab("single")}
+                >
+                  <Zap size={14} aria-hidden />
+                  Venda avulsa
                 </button>
               </div>
+
+              {activeCreationTab === "open" ? (
+                <form
+                  id="creation-panel-open"
+                  role="tabpanel"
+                  aria-labelledby="creation-tab-open"
+                  className="stack commanda-creation-box"
+                  onSubmit={handleCreateCommanda}
+                >
+                  <div>
+                    <p className="eyebrow">Abrir comanda</p>
+                    <p className="muted">Crie uma comanda nomeada ou deixe sem nome para identificar depois.</p>
+                  </div>
+
+                  <label className="field">
+                    <span>Nome do cliente</span>
+                    <input
+                      value={newCustomerName}
+                      onChange={(event) => setNewCustomerName(event.target.value)}
+                      placeholder="Mesa, nome ou apelido"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Observacoes</span>
+                    <textarea
+                      value={newNotes}
+                      onChange={(event) => setNewNotes(event.target.value)}
+                      rows={3}
+                      placeholder="Ex.: balcao, retirada, aniversario"
+                    />
+                  </label>
+
+                  <button className="button button-primary" type="submit" disabled={isPending}>
+                    <PlusCircle size={16} aria-hidden />
+                    {isPending ? "Criando..." : "Abrir comanda"}
+                  </button>
+                </form>
+              ) : (
+                <div
+                  id="creation-panel-single"
+                  role="tabpanel"
+                  aria-labelledby="creation-tab-single"
+                  className="stack commanda-creation-box"
+                >
+                  <div>
+                    <p className="eyebrow">Venda avulsa</p>
+                    <p className="muted">
+                      Abre uma comanda pronta para venda rapida, mas continua editavel e pode ser renomeada depois.
+                    </p>
+                  </div>
+
+                  <label className="field">
+                    <span>Nome opcional</span>
+                    <input
+                      value={singleSaleCustomerName}
+                      onChange={(event) => setSingleSaleCustomerName(event.target.value)}
+                      placeholder={SINGLE_SALE_CUSTOMER_NAME}
+                    />
+                  </label>
+
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={handleCreateSingleSale}
+                    disabled={isPending}
+                  >
+                    <Zap size={16} aria-hidden />
+                    {isPending ? "Criando..." : "Registrar venda avulsa"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="commanda-section-divider" />
@@ -1095,6 +1154,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                   type="button"
                   onClick={() => setActiveCatalogCommandaTab("open")}
                 >
+                  <Circle size={14} aria-hidden />
                   Abertas
                   <span className="badge neutral">{openCommandasCount}</span>
                 </button>
@@ -1103,6 +1163,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                   type="button"
                   onClick={() => setActiveCatalogCommandaTab("closed")}
                 >
+                  <CheckCircle2 size={14} aria-hidden />
                   Fechadas
                   <span className="badge neutral">{closedCommandasCount}</span>
                 </button>
@@ -1176,6 +1237,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                   type="button"
                   onClick={() => setActiveManagementCommandaTab("open")}
                 >
+                  <Circle size={14} aria-hidden />
                   Abertas
                   <span className="badge neutral">{openCommandasCount}</span>
                 </button>
@@ -1184,6 +1246,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                   type="button"
                   onClick={() => setActiveManagementCommandaTab("closed")}
                 >
+                  <CheckCircle2 size={14} aria-hidden />
                   Fechadas
                   <span className="badge neutral">{closedCommandasCount}</span>
                 </button>

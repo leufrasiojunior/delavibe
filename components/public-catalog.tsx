@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertTriangle, Ban, Check, Plus, Search, UtensilsCrossed } from "lucide-react";
 
+import { ProductMedia } from "@/components/product-media";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
+import { normalizeText } from "@/lib/utils/text";
 
 const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
 const ALL_CATEGORIES = "__all__";
@@ -21,10 +25,20 @@ function buildImageUrl(product: PublicProductDto) {
 
 function stockBadge(product: PublicProductDto) {
   if (product.stockQty <= 0) {
-    return <span className="badge danger">Esgotado</span>;
+    return (
+      <span className="badge danger">
+        <Ban size={12} aria-hidden />
+        Esgotado
+      </span>
+    );
   }
   if (product.stockQty <= product.minimumStock) {
-    return <span className="badge warning">Poucas unidades</span>;
+    return (
+      <span className="badge warning">
+        <AlertTriangle size={12} aria-hidden />
+        Poucas unidades
+      </span>
+    );
   }
   return null;
 }
@@ -42,6 +56,11 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORIES);
   const { addItem } = useCart();
   const [feedbackProductId, setFeedbackProductId] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  const setProductQuantity = useCallback((productId: string, next: number) => {
+    setQuantities((current) => ({ ...current, [productId]: next }));
+  }, []);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -52,13 +71,17 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   }, [initialProducts]);
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = normalizeText(search.trim());
     return initialProducts.filter((product) => {
       if (activeCategory !== ALL_CATEGORIES && categoryKey(product) !== activeCategory) {
         return false;
       }
-      if (term && !product.name.toLowerCase().includes(term)) {
-        return false;
+      if (term) {
+        const matchesName = normalizeText(product.name).includes(term);
+        const matchesCategory = normalizeText(product.category ?? "").includes(term);
+        if (!matchesName && !matchesCategory) {
+          return false;
+        }
       }
       return true;
     });
@@ -76,7 +99,9 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   }, [filtered]);
 
   function handleAdd(productId: string) {
-    addItem(productId, 1);
+    const qty = quantities[productId] ?? 1;
+    addItem(productId, qty);
+    setProductQuantity(productId, 1);
     setFeedbackProductId(productId);
     window.setTimeout(() => {
       setFeedbackProductId((current) => (current === productId ? null : current));
@@ -93,13 +118,16 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
             Escolha os itens, finalize o pedido e pague presencialmente ao chegar — sem complicação.
           </p>
         </div>
-        <input
-          type="search"
-          className="public-search"
-          placeholder="Buscar produto pelo nome"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <div className="public-search-wrapper">
+          <Search size={16} aria-hidden className="public-search-icon" />
+          <input
+            type="search"
+            className="public-search"
+            placeholder="Buscar produto pelo nome"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
       </section>
 
       {categories.length > 1 ? (
@@ -109,6 +137,11 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
             className={activeCategory === ALL_CATEGORIES ? "chip active" : "chip"}
             onClick={() => setActiveCategory(ALL_CATEGORIES)}
           >
+            {activeCategory === ALL_CATEGORIES ? (
+              <Check size={12} aria-hidden />
+            ) : (
+              <UtensilsCrossed size={12} aria-hidden />
+            )}
             Todas
           </button>
           {categories.map((category) => (
@@ -118,6 +151,7 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
               className={activeCategory === category ? "chip active" : "chip"}
               onClick={() => setActiveCategory(category)}
             >
+              {activeCategory === category ? <Check size={12} aria-hidden /> : null}
               {category}
             </button>
           ))}
@@ -149,13 +183,25 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
                       <strong>{formatCurrency(product.priceCents)}</strong>
                       {stockBadge(product)}
                     </div>
-                    <button
-                      type="button"
-                      className="button button-primary compact public-product-card-add"
-                      onClick={() => handleAdd(product.id)}
-                    >
-                      {feedbackProductId === product.id ? "Adicionado!" : "Adicionar"}
-                    </button>
+                    <div className="public-product-card-add-row">
+                      <QuantityStepper
+                        size="sm"
+                        value={quantities[product.id] ?? 1}
+                        onChange={(next) => setProductQuantity(product.id, next)}
+                      />
+                      <button
+                        type="button"
+                        className="button button-primary compact public-product-card-add"
+                        onClick={() => handleAdd(product.id)}
+                      >
+                        {feedbackProductId === product.id ? (
+                          <Check size={14} aria-hidden />
+                        ) : (
+                          <Plus size={14} aria-hidden />
+                        )}
+                        {feedbackProductId === product.id ? "Adicionado!" : "Adicionar"}
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}

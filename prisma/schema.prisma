@@ -39,6 +39,7 @@ enum WebOrderStatus {
   PAID
   PREPARING
   READY
+  OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
 }
@@ -66,8 +67,24 @@ model User {
   stockMoves         StockMovement[]
   auditLogs          AuditLog[]
   webOrderStatusLogs WebOrderStatusLog[]
+  pushSubscriptions  PushSubscription[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Session {
@@ -283,6 +300,7 @@ model WebOrder {
   addressReference    String?
   items               WebOrderItem[]
   statusLogs          WebOrderStatusLog[]
+  payments            WebOrderPayment[]
   statusUpdatedAt     DateTime            @default(now())
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -320,4 +338,16 @@ model WebOrderStatusLog {
   createdAt   DateTime                @default(now())
 
   @@index([webOrderId, createdAt])
+}
+
+model WebOrderPayment {
+  id          String        @id @default(cuid())
+  webOrderId  String
+  webOrder    WebOrder      @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
+  method      PaymentMethod
+  amountCents Int
+  createdAt   DateTime      @default(now())
+
+  @@index([webOrderId])
+  @@index([method])
 }

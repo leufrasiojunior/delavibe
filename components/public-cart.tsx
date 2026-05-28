@@ -1,18 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
 
+import { ProductMedia } from "@/components/product-media";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
-
-const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
-
-function imageUrl(product: PublicProductDto | undefined) {
-  if (!product?.imagePath) return PLACEHOLDER_IMAGE;
-  const version = Date.parse(product.updatedAt);
-  return `${product.imagePath}?v=${Number.isFinite(version) ? version : 0}`;
-}
 
 type PublicCartProps = {
   productsLookup: Record<string, PublicProductDto>;
@@ -34,7 +29,10 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
       <section className="public-empty">
         <h1>Seu carrinho está vazio</h1>
         <p className="muted">Adicione produtos no cardápio para continuar.</p>
-        <Link href="/" className="button button-primary compact">Voltar ao cardápio</Link>
+        <Link href="/" className="button button-primary compact">
+          <ArrowLeft size={14} aria-hidden />
+          Voltar ao cardápio
+        </Link>
       </section>
     );
   }
@@ -72,6 +70,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                   type="button"
                   onClick={() => removeItem(item.productId)}
                 >
+                  <Trash2 size={14} aria-hidden />
                   Remover
                 </button>
               </li>
@@ -81,41 +80,24 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
           const lineTotal = product.priceCents * item.quantity;
           return (
             <li key={item.productId} className="public-cart-line">
-              <img src={imageUrl(product)} alt={product.name} loading="lazy" />
+              <ProductMedia product={product} size="lg" />
               <div className="public-cart-line-info">
                 <strong>{product.name}</strong>
                 <span className="muted">{formatCurrency(product.priceCents)} cada</span>
                 <div className="public-cart-line-quantity">
-                  <button
-                    type="button"
-                    aria-label="Diminuir quantidade"
-                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
+                  <QuantityStepper
                     value={item.quantity}
-                    onChange={(event) =>
-                      updateQuantity(item.productId, Math.max(0, Number(event.target.value || 0)))
-                    }
+                    onChange={(next) => updateQuantity(item.productId, next)}
                   />
                   <button
+                    className="button button-secondary compact"
                     type="button"
-                    aria-label="Aumentar quantidade"
-                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                    onClick={() => removeItem(item.productId)}
                   >
-                    +
+                    <Trash2 size={14} aria-hidden />
+                    Remover
                   </button>
                 </div>
-                <button
-                  className="button button-secondary compact"
-                  type="button"
-                  onClick={() => removeItem(item.productId)}
-                >
-                  Remover
-                </button>
               </div>
               <strong>{formatCurrency(lineTotal)}</strong>
             </li>
@@ -129,11 +111,19 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
       </div>
 
       <div className="button-row">
-        <Link href="/" className="button button-secondary compact">Continuar comprando</Link>
+        <Link href="/" className="button button-secondary compact">
+          <ArrowLeft size={14} aria-hidden />
+          Continuar comprando
+        </Link>
         <button type="button" className="button button-secondary compact" onClick={handleClear}>
+          <Trash2 size={14} aria-hidden />
           Esvaziar carrinho
         </button>
-        <Link href="/checkout" className="button button-primary">Finalizar pedido</Link>
+        <Link href="/checkout" className="button button-primary">
+          <ShoppingCart size={16} aria-hidden />
+          Finalizar pedido
+          <ArrowRight size={14} aria-hidden />
+        </Link>
       </div>
     </section>
   );
