@@ -6,14 +6,17 @@ const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://delavibe:delavibe@localhost:5432/delavibe?schema=public";
 const adapter = new PrismaPg({ connectionString });
+const nodeEnv: string | undefined = process.env.NODE_ENV;
+const isDevelopment = nodeEnv === "development";
+const isProductionLike = nodeEnv === "production" || nodeEnv === "homolog";
 
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    log: isDevelopment ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
+if (!isProductionLike) {
   globalForPrisma.prisma = db;
 }
