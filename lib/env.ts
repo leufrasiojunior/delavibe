@@ -17,7 +17,7 @@ const positiveIntString = (label: string, defaultValue: number) =>
     .refine((n) => n > 0, `${label} deve ser maior que zero`);
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z.enum(["development", "production", "test", "homolog"]).default("development"),
 
   // Banco de dados
   DATABASE_URL: z
@@ -109,7 +109,9 @@ export type ValidateEnvResult =
   | { ok: true; env: AppEnv }
   | { ok: false; messages: string[] };
 
-export function validateEnv(rawEnv: NodeJS.ProcessEnv = process.env): ValidateEnvResult {
+type RawEnv = Record<string, string | undefined>;
+
+export function validateEnv(rawEnv: RawEnv = process.env): ValidateEnvResult {
   const result = envSchema.safeParse(rawEnv);
   const messages: string[] = [];
 
@@ -129,7 +131,7 @@ export function validateEnv(rawEnv: NodeJS.ProcessEnv = process.env): ValidateEn
   return { ok: true, env: result.data };
 }
 
-export function assertEnv(rawEnv: NodeJS.ProcessEnv = process.env): AppEnv {
+export function assertEnv(rawEnv: RawEnv = process.env): AppEnv {
   const result = validateEnv(rawEnv);
   if (result.ok) {
     return result.env;

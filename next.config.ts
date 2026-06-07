@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
-const isProduction = process.env.NODE_ENV === "production";
+const nodeEnv: string | undefined = process.env.NODE_ENV;
+const isProductionLike = nodeEnv === "production" || nodeEnv === "homolog";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  isProduction
+  isProductionLike
     ? "connect-src 'self' https://viacep.com.br"
     : "connect-src 'self' ws: http: https:",
   "font-src 'self' data:",
@@ -13,7 +14,7 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "img-src 'self' data: blob:",
   "object-src 'none'",
-  isProduction
+  isProductionLike
     ? "script-src 'self' 'unsafe-inline'"
     : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
