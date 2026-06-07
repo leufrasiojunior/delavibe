@@ -372,6 +372,48 @@ button {
   gap: 0.7rem;
 }
 
+.whatsapp-phone-input {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.whatsapp-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 1rem;
+  border: 1px solid rgba(131, 82, 115, 0.18);
+  border-radius: 16px;
+  background: rgba(244, 182, 79, 0.12);
+  color: var(--magenta-deep);
+  font-weight: 600;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.whatsapp-phone-input .whatsapp-phone-ddd {
+  width: 5rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.whatsapp-phone-input .whatsapp-phone-number {
+  flex: 1 1 auto;
+  letter-spacing: 0.02em;
+}
+
+.whatsapp-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.whatsapp-field-row .field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .form-error,
 .form-success {
   margin: 0;
