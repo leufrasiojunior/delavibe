@@ -9,9 +9,11 @@ import {
   ClipboardList,
   ExternalLink,
   LayoutDashboard,
+  MessageCircle,
   Package,
   ShoppingBag,
 } from "lucide-react";
+import type { Role } from "@prisma/client";
 
 import { LogoutButton } from "@/components/logout-button";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
@@ -28,6 +30,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: NavIcon;
+  roles?: Role[];
 };
 
 const navigation: NavItem[] = [
@@ -37,6 +40,7 @@ const navigation: NavItem[] = [
   { href: "/admin/products", label: "Produtos", icon: Package },
   { href: "/admin/stock", label: "Estoque", icon: Boxes },
   { href: "/admin/sales", label: "Vendas", icon: BarChart3 },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin"] },
   { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
 
@@ -167,15 +171,17 @@ export function AppShell({ session, children }: AppShellProps) {
         </div>
 
         <nav className="nav-links">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.href} href={item.href} className="nav-link">
-                <Icon size={18} aria-hidden />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {navigation
+            .filter((item) => !item.roles || item.roles.includes(session.user.role))
+            .map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.href} href={item.href} className="nav-link">
+                  <Icon size={18} aria-hidden />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
         </nav>
 
         <div className="sidebar-footer">

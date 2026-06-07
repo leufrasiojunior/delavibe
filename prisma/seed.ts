@@ -3,7 +3,7 @@ import { PrismaClient, StockMovementReason } from "@prisma/client";
 
 const connectionString =
   process.env.DATABASE_URL ||
-  "postgresql://delavibe:change-me-local-only@localhost:5433/delavibe?schema=public";
+  "postgresql://delavibe:change-me-local-only@localhost:5432/delavibe?schema=public";
 
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
