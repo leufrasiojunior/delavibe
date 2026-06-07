@@ -351,3 +351,13 @@ model WebOrderPayment {
   @@index([webOrderId])
   @@index([method])
 }
+
+model WhatsappInstance {
+  id               String    @id @default(cuid())
+  instanceName     String    @unique
+  instanceId       String
+  apikeyCiphertext String
+  webhookUrl       String?
+  createdAt        DateTime  @default(now())
+  lastConnectedAt  DateTime?
+}
