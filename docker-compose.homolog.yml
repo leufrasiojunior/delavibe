@@ -11,23 +11,31 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (aponte para a URL interna do stack de DB)}
-      NODE_ENV: production
-      SESSION_COOKIE_SECURE: "true"
-      SESSION_COOKIE_NAME: __Host-pdv_session
-      CSRF_COOKIE_NAME: __Host-pdv_csrf
-      NEXT_PUBLIC_CSRF_COOKIE_NAME: __Host-pdv_csrf
-      SESSION_TTL_HOURS: "12"
-      APP_TIMEZONE: America/Sao_Paulo
-      NEXT_PUBLIC_APP_NAME: "Dela's Vibe PDV"
-      TRUST_PROXY_HEADERS: "true"
-      TZ: America/Sao_Paulo
-      UPLOADS_DIR: /app/uploads
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
+      TZ: ${TZ:-America/Sao_Paulo}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Dela's Vibe PDV}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-__Host-pdv_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-__Host-pdv_csrf}
+      NEXT_PUBLIC_CSRF_COOKIE_NAME: ${NEXT_PUBLIC_CSRF_COOKIE_NAME:-__Host-pdv_csrf}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      CUSTOMER_SESSION_COOKIE_NAME: ${CUSTOMER_SESSION_COOKIE_NAME:-__Host-customer_session}
+      CUSTOMER_CSRF_COOKIE_NAME: ${CUSTOMER_CSRF_COOKIE_NAME:-__Host-customer_csrf}
+      CUSTOMER_SESSION_TTL_HOURS: ${CUSTOMER_SESSION_TTL_HOURS:-168}
+      WEB_ORDER_PENDING_TTL_MINUTES: ${WEB_ORDER_PENDING_TTL_MINUTES:-60}
       NEXT_PUBLIC_STORE_NAME: ${NEXT_PUBLIC_STORE_NAME:-Dela's Vibe}
       NEXT_PUBLIC_STORE_ADDRESS: ${NEXT_PUBLIC_STORE_ADDRESS:-Endereço a configurar}
       NEXT_PUBLIC_STORE_PHONE: ${NEXT_PUBLIC_STORE_PHONE:-(00) 00000-0000}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      EVOLUTION_API_BASE_URL: ${EVOLUTION_API_BASE_URL:-}
+      EVOLUTION_API_GLOBAL_APIKEY: ${EVOLUTION_API_GLOBAL_APIKEY:-}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
     volumes:
       - uploads_data:/app/uploads
     healthcheck:
