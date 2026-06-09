@@ -9,7 +9,6 @@ import {
   ClipboardList,
   ExternalLink,
   LayoutDashboard,
-  MessageCircle,
   Package,
   ShoppingBag,
 } from "lucide-react";
@@ -40,7 +39,6 @@ const navigation: NavItem[] = [
   { href: "/admin/products", label: "Produtos", icon: Package },
   { href: "/admin/stock", label: "Estoque", icon: Boxes },
   { href: "/admin/sales", label: "Vendas", icon: BarChart3 },
-  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin"] },
   { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
 
