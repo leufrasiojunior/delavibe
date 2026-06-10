@@ -15,6 +15,7 @@ import {
   searchQueryFieldSchema,
 } from "@/lib/schemas/string-fields";
 import { toCents } from "@/lib/utils/money";
+import { promotionTypeSchema } from "@/lib/schemas/promotion";
 
 export const paymentSchema = z.object({
   id: z.string(),
@@ -28,6 +29,9 @@ export const paymentSchema = z.object({
 export const commandaItemSchema = z.object({
   id: z.string(),
   productId: z.string(),
+  promotionId: z.string().nullable(),
+  promotionType: promotionTypeSchema.nullable(),
+  originalUnitPriceCents: z.number().int().nullable(),
   productName: z.string(),
   productSku: z.string(),
   quantity: z.number().int(),
@@ -78,6 +82,7 @@ export const updateCommandaCustomerNameInputSchema = z.object({
 
 export const addCommandaItemInputSchema = z.object({
   productId: z.string().cuid(),
+  promotionId: z.string().cuid().nullable().optional(),
   quantity: requiredIntegerField({
     required: "Informe a quantidade do item.",
     invalid: "Informe uma quantidade válida.",

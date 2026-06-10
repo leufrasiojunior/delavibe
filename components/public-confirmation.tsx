@@ -82,7 +82,14 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
         <ul className="public-checkout-summary">
           {order.items.map((item) => (
             <li key={item.id}>
-              <span>{item.productName} × {item.quantity}</span>
+              <span>
+                {item.productName} × {item.quantity}
+                {item.promotionId && item.originalUnitPriceCents ? (
+                  <small className="public-order-promo-note">
+                    {formatCurrency(item.originalUnitPriceCents)} por {formatCurrency(item.unitPriceCents)} cada
+                  </small>
+                ) : null}
+              </span>
               <strong>{formatCurrency(item.lineTotalCents)}</strong>
             </li>
           ))}

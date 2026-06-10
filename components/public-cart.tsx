@@ -39,7 +39,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
 
   const total = items.reduce((sum, item) => {
     const product = productsLookup[item.productId];
-    return sum + (product?.priceCents ?? 0) * item.quantity;
+    return sum + (product?.effectivePriceCents ?? 0) * item.quantity;
   }, 0);
 
   function handleClear() {
@@ -77,13 +77,20 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
             );
           }
 
-          const lineTotal = product.priceCents * item.quantity;
+          const lineTotal = product.effectivePriceCents * item.quantity;
           return (
             <li key={item.productId} className="public-cart-line">
               <ProductMedia product={product} size="lg" />
               <div className="public-cart-line-info">
                 <strong>{product.name}</strong>
-                <span className="muted">{formatCurrency(product.priceCents)} cada</span>
+                {product.promotion ? (
+                  <span className="public-promo-price compact">
+                    <span>{formatCurrency(product.priceCents)} cada</span>
+                    <strong>{formatCurrency(product.effectivePriceCents)} cada</strong>
+                  </span>
+                ) : (
+                  <span className="muted">{formatCurrency(product.priceCents)} cada</span>
+                )}
                 <div className="public-cart-line-quantity">
                   <QuantityStepper
                     value={item.quantity}

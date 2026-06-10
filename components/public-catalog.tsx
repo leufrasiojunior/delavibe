@@ -47,6 +47,19 @@ function categoryKey(product: PublicProductDto) {
   return product.category?.trim() || UNCATEGORIZED_KEY;
 }
 
+function ProductPrice({ product }: { product: PublicProductDto }) {
+  if (!product.promotion) {
+    return <strong>{formatCurrency(product.priceCents)}</strong>;
+  }
+
+  return (
+    <span className="public-promo-price">
+      <span>{formatCurrency(product.priceCents)}</span>
+      <strong>{formatCurrency(product.effectivePriceCents)}</strong>
+    </span>
+  );
+}
+
 type PublicCatalogProps = {
   initialProducts: PublicProductDto[];
 };
@@ -97,6 +110,11 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
+
+  const promotionalProducts = useMemo(
+    () => initialProducts.filter((product) => product.promotion),
+    [initialProducts],
+  );
 
   function handleAdd(productId: string) {
     const qty = quantities[productId] ?? 1;
@@ -158,6 +176,58 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
         </nav>
       ) : null}
 
+      {promotionalProducts.length > 0 ? (
+        <section className="public-category public-promotions-section">
+          <div className="public-section-heading">
+            <div>
+              <p className="eyebrow">Promoções</p>
+              <h2>Ofertas no site</h2>
+            </div>
+          </div>
+          <ul className="public-product-grid">
+            {promotionalProducts.map((product) => (
+              <li key={`promotion-${product.id}`} className="public-product-card promoted">
+                <Link href={`/produto/${product.id}`} className="public-product-card-link">
+                  <img
+                    src={buildImageUrl(product)}
+                    alt={product.name}
+                    loading="lazy"
+                    className="public-product-card-img"
+                  />
+                </Link>
+                <div className="public-product-card-body">
+                  <span className="badge success">Promoção</span>
+                  <h3>{product.name}</h3>
+                  <div className="public-product-card-meta">
+                    <ProductPrice product={product} />
+                    {stockBadge(product)}
+                  </div>
+                  <div className="public-product-card-add-row">
+                    <QuantityStepper
+                      size="sm"
+                      value={quantities[product.id] ?? 1}
+                      onChange={(next) => setProductQuantity(product.id, next)}
+                    />
+                    <button
+                      type="button"
+                      className="button button-primary compact public-product-card-add"
+                      onClick={() => handleAdd(product.id)}
+                    >
+                      {feedbackProductId === product.id ? (
+                        <Check size={14} aria-hidden />
+                      ) : (
+                        <Plus size={14} aria-hidden />
+                      )}
+                      {feedbackProductId === product.id ? "Adicionado!" : "Adicionar"}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {grouped.length === 0 ? (
         <section className="public-empty">
           <p>Nenhum produto encontrado.</p>
@@ -178,9 +248,10 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
                     />
                   </Link>
                   <div className="public-product-card-body">
+                    {product.promotion ? <span className="badge success">Promoção</span> : null}
                     <h3>{product.name}</h3>
                     <div className="public-product-card-meta">
-                      <strong>{formatCurrency(product.priceCents)}</strong>
+                      <ProductPrice product={product} />
                       {stockBadge(product)}
                     </div>
                     <div className="public-product-card-add-row">

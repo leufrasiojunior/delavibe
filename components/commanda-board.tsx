@@ -368,13 +368,14 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
     return created;
   }
 
-  async function addItemToCommanda(commandaId: string, product: ProductDto) {
+  async function addItemToCommanda(commandaId: string, product: ProductDto, promotionId?: string | null) {
     const response = await apiFetch(
       `/api/commandas/${commandaId}/items`,
       {
         method: "POST",
         body: JSON.stringify({
           productId: product.id,
+          promotionId: promotionId ?? null,
           quantity: quantityFor(product.id),
         }),
       },
@@ -446,7 +447,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
     });
   }
 
-  function handleAddItem(product: ProductDto) {
+  function handleAddItem(product: ProductDto, promotionId?: string | null) {
     if (selectedComanda && selectedComanda.status !== "open") {
       toast.error("Reabra a comanda selecionada ou escolha uma comanda aberta antes de adicionar itens.");
       return;
@@ -462,7 +463,7 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         });
       }
 
-      const response = await addItemToCommanda(targetCommanda.id, product);
+      const response = await addItemToCommanda(targetCommanda.id, product, promotionId);
 
       setActiveMainTab("catalog");
       setActiveCatalogCommandaTab("open");
@@ -474,6 +475,8 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
         toast.success(`Comanda #${response.commanda.number} aberta automaticamente e item adicionado.`);
       } else if (response.warning) {
         toast.info(response.warning);
+      } else if (promotionId) {
+        toast.success(`Promoção de ${product.name} aplicada na comanda #${response.commanda.number}.`);
       } else {
         toast.success(`Quantidade de ${product.name} atualizada na comanda #${response.commanda.number}.`);
       }
@@ -700,6 +703,12 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                 <td>
                   <strong>{item.productName}</strong>
                   <span className="table-subtitle">{item.productSku}</span>
+                  {item.promotionId && item.originalUnitPriceCents ? (
+                    <span className="table-subtitle">
+                      Promoção: de {formatCurrency(item.originalUnitPriceCents)} por{" "}
+                      {formatCurrency(item.unitPriceCents)}
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   {selectedComanda.status === "open" ? (
@@ -964,37 +973,46 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
             </div>
 
             <div className="product-pick-list">
-              {filteredProducts.map((product) => (
-                <article key={product.id} className="product-pick-card catalog-card">
-                  <div className="product-card-image">
-                    <img
-                      src={product.imagePath || "/catalog-placeholder.jpg"}
-                      alt={product.name}
-                      className="product-card-thumb"
-                      width={320}
-                      height={220}
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="product-card-body">
-                    <div className="product-card-head">
-                      <strong>{product.name}</strong>
-                      <span>{formatCurrency(product.priceCents)}</span>
+              {filteredProducts.map((product) => {
+                const localPromotion = product.activeLocalPromotion;
+                return (
+                  <article key={product.id} className="product-pick-card catalog-card">
+                    <div className="product-card-image">
+                      <img
+                        src={product.imagePath || "/catalog-placeholder.jpg"}
+                        alt={product.name}
+                        className="product-card-thumb"
+                        width={320}
+                        height={220}
+                        loading="lazy"
+                      />
                     </div>
-                    <span className="table-subtitle">{buildProductDetails(product)}</span>
-                    <div className="pick-card-footer">
-                      <span
-                        className={
-                          product.stockQty < 0
-                            ? "badge danger"
-                            : product.stockQty <= product.minimumStock
-                              ? "badge warning"
-                              : "badge neutral"
-                        }
-                      >
-                        Estoque {product.stockQty}
-                      </span>
-                      {/* <div className="quantity-control"> */}
+                    <div className="product-card-body">
+                      <div className="product-card-head">
+                        <strong>{product.name}</strong>
+                        {localPromotion ? (
+                          <span className="promotion-card-price">
+                            <span>{formatCurrency(product.priceCents)}</span>
+                            <strong>{formatCurrency(localPromotion.promotionalPriceCents)}</strong>
+                          </span>
+                        ) : (
+                          <span>{formatCurrency(product.priceCents)}</span>
+                        )}
+                      </div>
+                      <span className="table-subtitle">{buildProductDetails(product)}</span>
+                      {localPromotion ? <span className="badge success">Promoção no local</span> : null}
+                      <div className="pick-card-footer">
+                        <span
+                          className={
+                            product.stockQty < 0
+                              ? "badge danger"
+                              : product.stockQty <= product.minimumStock
+                                ? "badge warning"
+                                : "badge neutral"
+                          }
+                        >
+                          Estoque {product.stockQty}
+                        </span>
                         <input
                           value={quantityByProduct[product.id] ?? "1"}
                           type="number"
@@ -1011,11 +1029,22 @@ export function CommandaBoard({ commandas, products }: CommandaBoardProps) {
                           <Plus size={14} aria-hidden />
                           Adicionar
                         </button>
-                      {/* </div> */}
+                        {localPromotion ? (
+                          <button
+                            className="button button-secondary compact"
+                            type="button"
+                            onClick={() => handleAddItem(product, localPromotion.id)}
+                            disabled={isPending || !product.isActive}
+                          >
+                            <Zap size={14} aria-hidden />
+                            Promoção
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
 
             {filteredProducts.length === 0 ? (

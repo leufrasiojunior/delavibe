@@ -456,6 +456,82 @@ button {
   text-align: right;
 }
 
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon svg {
+  position: absolute;
+  left: 0.8rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.input-with-icon input {
+  width: 100%;
+  padding-left: 2.25rem;
+}
+
+.promotion-management {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.promotion-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.promotion-active-field {
+  align-self: end;
+  min-height: 46px;
+}
+
+.promotion-search {
+  min-width: min(100%, 320px);
+}
+
+.promotion-tabs {
+  margin-bottom: 1rem;
+}
+
+.promotion-price-cell,
+.promotion-card-price,
+.public-promo-price {
+  display: inline-grid;
+  gap: 0.1rem;
+  line-height: 1.15;
+}
+
+.promotion-price-cell > span,
+.promotion-card-price > span,
+.public-promo-price > span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: line-through;
+}
+
+.promotion-price-cell > strong,
+.promotion-card-price > strong,
+.public-promo-price > strong {
+  color: var(--success);
+}
+
+.public-promo-price.compact {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.public-order-promo-note {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--success);
+  font-weight: 700;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1098,6 +1174,16 @@ button {
   white-space: nowrap;
 }
 
+.product-card-head .promotion-card-price > span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.product-card-head .promotion-card-price > strong {
+  color: var(--success);
+}
+
 .product-card-body .table-subtitle {
   display: -webkit-box;
   line-height: 1.3;
@@ -1136,7 +1222,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .quantity-control {
@@ -1991,6 +2077,25 @@ button {
   font-size: 1.4rem;
 }
 
+.public-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.public-section-heading h2 {
+  margin: 0.2rem 0 0;
+}
+
+.public-promotions-section {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(34, 130, 102, 0.22);
+  background: rgba(34, 130, 102, 0.06);
+}
+
 .public-category-chips {
   display: flex;
   flex-wrap: nowrap;
@@ -2050,6 +2155,10 @@ button {
   background: rgb(255, 255, 255);
   border: 1px solid var(--panel-border);
   overflow: hidden;
+}
+
+.public-product-card.promoted {
+  border-color: rgba(34, 130, 102, 0.35);
 }
 
 .public-product-card-link {

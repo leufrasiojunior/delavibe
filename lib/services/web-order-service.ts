@@ -2,6 +2,7 @@ import {
   DeliveryMode,
   PaymentMethod,
   Prisma,
+  PromotionType,
   WebOrderStatus,
   WebOrderStatusActorType,
 } from "@prisma/client";
@@ -17,6 +18,7 @@ import {
   webOrderCreateInputSchema,
 } from "@/lib/schemas/web-order";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import { selectActivePromotionForTarget } from "@/lib/services/promotion-service";
 import { sendNewOrderPushToAdmins } from "@/lib/services/push-notification-service";
 import {
   cancelingRevertsStock,
@@ -52,6 +54,9 @@ function toItemDto(
   return {
     id: item.id,
     productId: item.productId,
+    promotionId: item.promotionId,
+    promotionType: item.promotionType,
+    originalUnitPriceCents: item.originalUnitPriceCents,
     productName: item.productName,
     quantity: item.quantity,
     unitPriceCents: item.unitPriceCents,
@@ -184,8 +189,19 @@ export async function createWebOrder(
     }
 
     const productIds = input.items.map((item) => item.productId);
+    const now = new Date();
     const products = await tx.product.findMany({
       where: { id: { in: productIds }, isActive: true },
+      include: {
+        promotions: {
+          where: {
+            isActive: true,
+            startsAt: { lte: now },
+            endsAt: { gt: now },
+            type: { in: [PromotionType.site, PromotionType.both] },
+          },
+        },
+      },
     });
 
     if (products.length !== productIds.length) {
@@ -206,13 +222,23 @@ export async function createWebOrder(
 
     for (const item of input.items) {
       const product = productById.get(item.productId)!;
-      const lineTotal = product.priceCents * item.quantity;
+      const promotion = selectActivePromotionForTarget(
+        product.promotions,
+        "site",
+        product.priceCents,
+        now,
+      );
+      const unitPriceCents = promotion?.promotionalPriceCents ?? product.priceCents;
+      const lineTotal = unitPriceCents * item.quantity;
       totalCents += lineTotal;
       itemRows.push({
         productId: product.id,
+        promotionId: promotion?.id ?? null,
+        promotionType: promotion?.type ?? null,
+        originalUnitPriceCents: promotion ? product.priceCents : null,
         productName: product.name,
         quantity: item.quantity,
-        unitPriceCents: product.priceCents,
+        unitPriceCents,
         lineTotalCents: lineTotal,
       });
     }

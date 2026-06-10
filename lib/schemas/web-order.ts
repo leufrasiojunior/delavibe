@@ -8,6 +8,7 @@ import {
   passwordFieldSchema,
   searchQueryFieldSchema,
 } from "@/lib/schemas/string-fields";
+import { promotionTypeSchema } from "@/lib/schemas/promotion";
 
 const webOrderStatusSchema = z.nativeEnum(WebOrderStatus);
 const paymentMethodSchema = z.nativeEnum(PaymentMethod);
@@ -215,6 +216,9 @@ export type WebOrderListResponse = z.infer<typeof webOrderListResponseSchema>;
 export const webOrderItemSchema = z.object({
   id: z.string(),
   productId: z.string(),
+  promotionId: z.string().nullable(),
+  promotionType: promotionTypeSchema.nullable(),
+  originalUnitPriceCents: z.number().int().nullable(),
   productName: z.string(),
   quantity: z.number().int(),
   unitPriceCents: z.number().int(),

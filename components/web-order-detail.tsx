@@ -355,6 +355,12 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
                 <span className="muted">
                   {item.quantity} × {formatCurrency(item.unitPriceCents)}
                 </span>
+                {item.promotionId && item.originalUnitPriceCents ? (
+                  <span className="table-subtitle">
+                    Promoção aplicada: de {formatCurrency(item.originalUnitPriceCents)} por{" "}
+                    {formatCurrency(item.unitPriceCents)}
+                  </span>
+                ) : null}
               </div>
               <strong>{formatCurrency(item.lineTotalCents)}</strong>
             </li>

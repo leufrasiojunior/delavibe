@@ -48,7 +48,14 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
         <div className="public-product-detail-body">
           <p className="eyebrow">{product.category ?? "Produto"}</p>
           <h1>{product.name}</h1>
-          <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
+          {product.promotion ? (
+            <div className="public-product-detail-price public-promo-price">
+              <span>{formatCurrency(product.priceCents)}</span>
+              <strong>{formatCurrency(product.effectivePriceCents)}</strong>
+            </div>
+          ) : (
+            <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
+          )}
           {product.stockQty <= 0 ? (
             <p>
               <span className="badge danger">

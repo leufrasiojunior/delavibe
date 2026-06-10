@@ -134,7 +134,7 @@ export function PublicCheckoutForm({
     () =>
       items.reduce((sum, item) => {
         const product = productsLookup[item.productId];
-        return sum + (product?.priceCents ?? 0) * item.quantity;
+        return sum + (product?.effectivePriceCents ?? 0) * item.quantity;
       }, 0),
     [items, productsLookup],
   );
@@ -458,7 +458,7 @@ export function PublicCheckoutForm({
         <ul className="public-checkout-summary">
           {items.map((item) => {
             const product = productsLookup[item.productId];
-            const lineTotal = (product?.priceCents ?? 0) * item.quantity;
+            const lineTotal = (product?.effectivePriceCents ?? 0) * item.quantity;
             return (
               <li key={item.productId} className="public-checkout-summary-row">
                 {product ? (
@@ -468,7 +468,14 @@ export function PublicCheckoutForm({
                 )}
                 <div className="public-checkout-summary-info">
                   <strong>{product?.name ?? "Produto indisponível"}</strong>
-                  <span className="muted">{formatCurrency(product?.priceCents ?? 0)} cada</span>
+                  {product?.promotion ? (
+                    <span className="public-promo-price compact">
+                      <span>{formatCurrency(product.priceCents)} cada</span>
+                      <strong>{formatCurrency(product.effectivePriceCents)} cada</strong>
+                    </span>
+                  ) : (
+                    <span className="muted">{formatCurrency(product?.priceCents ?? 0)} cada</span>
+                  )}
                 </div>
                 {product ? (
                   <QuantityStepper

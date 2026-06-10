@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, PromotionType } from "@prisma/client";
 
 import { AppError } from "@/lib/api/response";
 import { db } from "@/lib/db";
@@ -9,6 +9,10 @@ import {
   type ProductDto,
 } from "@/lib/schemas/product";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import {
+  selectActivePromotionForTarget,
+  toPromotionSnapshot,
+} from "@/lib/services/promotion-service";
 
 function toProductDto(product: {
   id: string;
@@ -23,11 +27,35 @@ function toProductDto(product: {
   stockQty: number;
   minimumStock: number;
   isActive: boolean;
+  promotions?: Array<{
+    id: string;
+    type: PromotionType;
+    promotionalPriceCents: number;
+    startsAt: Date;
+    endsAt: Date;
+    isActive: boolean;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }): ProductDto {
+  const localPromotion = product.promotions
+    ? selectActivePromotionForTarget(product.promotions, "local", product.priceCents)
+    : null;
+
   return {
-    ...product,
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    barcode: product.barcode,
+    category: product.category,
+    imagePath: product.imagePath,
+    unit: product.unit,
+    priceCents: product.priceCents,
+    costCents: product.costCents,
+    stockQty: product.stockQty,
+    minimumStock: product.minimumStock,
+    isActive: product.isActive,
+    activeLocalPromotion: localPromotion ? toPromotionSnapshot(localPromotion) : null,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -76,7 +104,18 @@ function handleProductWriteError(error: unknown) {
 }
 
 export async function listProducts() {
+  const now = new Date();
   const products = await db.product.findMany({
+    include: {
+      promotions: {
+        where: {
+          isActive: true,
+          startsAt: { lte: now },
+          endsAt: { gt: now },
+          type: { in: [PromotionType.local, PromotionType.both] },
+        },
+      },
+    },
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
   });
 
