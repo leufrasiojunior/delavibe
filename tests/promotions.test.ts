@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { PromotionType } from "@prisma/client";
 
-import { createPromotionInputSchema } from "@/lib/schemas/promotion";
+import { createPromotionInputSchema, type PromotionDto } from "@/lib/schemas/promotion";
 import {
   getPromotionStatus,
   periodsOverlap,
@@ -11,6 +11,15 @@ import {
   promotionTypesOverlap,
   selectActivePromotionForTarget,
 } from "@/lib/services/promotion-service";
+import {
+  filterPromotionsForAdmin,
+  findPromotionConflict,
+} from "@/lib/utils/promotion-admin";
+import {
+  calculatePromotionSavings,
+  formatPromotionSavingsLine,
+} from "@/lib/utils/promotion-display";
+import { formatCurrency } from "@/lib/utils/money";
 
 const basePromotion = {
   id: "promotion-1",
@@ -19,6 +28,40 @@ const basePromotion = {
   endsAt: new Date("2026-06-10T20:00:00.000Z"),
   isActive: true,
 };
+
+function buildPromotion(
+  overrides: Partial<Omit<PromotionDto, "product">> & {
+    product?: Partial<PromotionDto["product"]>;
+  },
+): PromotionDto {
+  const { product: productOverrides, ...promotionOverrides } = overrides;
+  const id = overrides.id ?? "promotion-admin-1";
+  const productId = overrides.productId ?? "product-1";
+
+  return {
+    id,
+    productId,
+    product: {
+      id: productId,
+      name: "Produto teste",
+      sku: "SKU-TESTE",
+      barcode: "7890000000000",
+      category: "Categoria",
+      priceCents: 1000,
+      imagePath: null,
+      updatedAt: "2026-06-10T09:00:00.000Z",
+      ...productOverrides,
+    },
+    type: PromotionType.site,
+    promotionalPriceCents: 800,
+    startsAt: "2026-06-10T10:00:00.000Z",
+    endsAt: "2026-06-10T20:00:00.000Z",
+    isActive: true,
+    createdAt: "2026-06-10T09:00:00.000Z",
+    updatedAt: "2026-06-10T09:00:00.000Z",
+    ...promotionOverrides,
+  };
+}
 
 test("promotionAppliesToTarget mantém local fora do site público", () => {
   assert.equal(promotionAppliesToTarget(PromotionType.local, "local"), true);
@@ -121,5 +164,133 @@ test("createPromotionInputSchema converte preço e rejeita período invertido", 
       isActive: true,
     }),
     /fim da promoção/i,
+  );
+});
+
+test("calculatePromotionSavings mostra economia e ignora preço sem desconto", () => {
+  const savings = calculatePromotionSavings(1000, 800);
+
+  assert.equal(savings?.savingsCents, 200);
+  assert.equal(savings?.discountLabel, "20% OFF");
+  assert.equal(
+    formatPromotionSavingsLine(1000, 800),
+    `De ${formatCurrency(1000)} por ${formatCurrency(800)} · 20% OFF`,
+  );
+  assert.equal(calculatePromotionSavings(1000, 1000), null);
+  assert.equal(calculatePromotionSavings(1000, 1200), null);
+});
+
+test("findPromotionConflict replica conflito preventivo da tela admin", () => {
+  const existingSite = buildPromotion({
+    id: "site",
+    productId: "product-1",
+    type: PromotionType.site,
+    startsAt: "2026-06-10T10:00:00.000Z",
+    endsAt: "2026-06-10T20:00:00.000Z",
+  });
+
+  assert.equal(
+    findPromotionConflict([existingSite], {
+      id: null,
+      productId: "product-1",
+      type: PromotionType.local,
+      startsAt: "2026-06-10T12:00:00.000Z",
+      endsAt: "2026-06-10T13:00:00.000Z",
+      isActive: true,
+    }),
+    null,
+  );
+
+  assert.equal(
+    findPromotionConflict([existingSite], {
+      id: null,
+      productId: "product-1",
+      type: PromotionType.both,
+      startsAt: "2026-06-10T12:00:00.000Z",
+      endsAt: "2026-06-10T13:00:00.000Z",
+      isActive: true,
+    })?.id,
+    "site",
+  );
+
+  assert.equal(
+    findPromotionConflict([existingSite], {
+      id: null,
+      productId: "product-1",
+      type: PromotionType.site,
+      startsAt: "2026-06-10T12:00:00.000Z",
+      endsAt: "2026-06-10T13:00:00.000Z",
+      isActive: true,
+    })?.id,
+    "site",
+  );
+
+  assert.equal(
+    findPromotionConflict([existingSite], {
+      id: "site",
+      productId: "product-1",
+      type: PromotionType.site,
+      startsAt: "2026-06-10T12:00:00.000Z",
+      endsAt: "2026-06-10T13:00:00.000Z",
+      isActive: true,
+    }),
+    null,
+  );
+});
+
+test("filterPromotionsForAdmin combina filtros e ordena por prioridade operacional", () => {
+  const now = new Date("2026-06-10T12:00:00.000Z");
+  const promotions = [
+    buildPromotion({
+      id: "inactive",
+      type: PromotionType.site,
+      isActive: false,
+      endsAt: "2026-06-10T13:00:00.000Z",
+      updatedAt: "2026-06-10T12:30:00.000Z",
+    }),
+    buildPromotion({
+      id: "expired-old",
+      type: PromotionType.local,
+      endsAt: "2026-06-10T09:00:00.000Z",
+    }),
+    buildPromotion({
+      id: "scheduled",
+      type: PromotionType.both,
+      startsAt: "2026-06-10T13:00:00.000Z",
+      endsAt: "2026-06-10T14:00:00.000Z",
+    }),
+    buildPromotion({
+      id: "active-later",
+      type: PromotionType.site,
+      product: { sku: "SKU-SITE" },
+      endsAt: "2026-06-10T20:00:00.000Z",
+    }),
+    buildPromotion({
+      id: "expired-recent",
+      type: PromotionType.local,
+      endsAt: "2026-06-10T11:00:00.000Z",
+    }),
+    buildPromotion({
+      id: "active-near",
+      type: PromotionType.local,
+      endsAt: "2026-06-10T13:00:00.000Z",
+    }),
+  ];
+
+  assert.deepEqual(
+    filterPromotionsForAdmin(promotions, { status: "all", type: "all", search: "", now }).map(
+      (promotion) => promotion.id,
+    ),
+    ["active-near", "active-later", "scheduled", "expired-recent", "expired-old", "inactive"],
+  );
+
+  assert.deepEqual(
+    filterPromotionsForAdmin(promotions, {
+      status: "active",
+      type: PromotionType.site,
+      search: "sku-site",
+      now,
+    }).map((promotion) => promotion.id),
+    ["active-later"],
   );
 });

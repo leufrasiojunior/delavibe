@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
-import { LogIn, LogOut, ShoppingCart, UserPlus } from "lucide-react";
+import { LogIn, LogOut, MessageCircle, ShoppingCart, UserPlus } from "lucide-react";
 
 import { apiFetch } from "@/lib/api/client";
 import { useCart } from "@/lib/hooks/use-cart";
+import { buildWhatsappUrl } from "@/lib/utils/whatsapp";
 import { z } from "zod";
 
 const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "Dela's Vibe";
@@ -22,14 +23,16 @@ type PublicCustomer = {
 
 type PublicShellProps = {
   customer: PublicCustomer | null;
+  whatsappContactPhone: string | null;
   children: ReactNode;
 };
 
-export function PublicShell({ customer, children }: PublicShellProps) {
+export function PublicShell({ customer, whatsappContactPhone, children }: PublicShellProps) {
   const router = useRouter();
   const { count, isHydrated } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const whatsappUrl = buildWhatsappUrl(whatsappContactPhone);
 
   function handleLogout() {
     setError(null);
@@ -95,6 +98,18 @@ export function PublicShell({ customer, children }: PublicShellProps) {
       </header>
 
       <main className="public-content">{children}</main>
+
+      {whatsappUrl ? (
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="public-whatsapp-float"
+          aria-label="Entrar em contato pelo WhatsApp"
+        >
+          <MessageCircle size={26} aria-hidden />
+        </a>
+      ) : null}
 
       <footer className="public-footer">
         <div className="public-footer-links">

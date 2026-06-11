@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Package,
   Percent,
+  Settings,
   ShoppingBag,
 } from "lucide-react";
 import type { Role } from "@prisma/client";
@@ -41,6 +42,7 @@ const navigation: NavItem[] = [
   { href: "/admin/promocoes", label: "Promoções", icon: Percent },
   { href: "/admin/stock", label: "Estoque", icon: Boxes },
   { href: "/admin/sales", label: "Vendas", icon: BarChart3 },
+  { href: "/admin/configuracoes", label: "Configurações", icon: Settings, roles: ["admin"] },
   { href: "/", label: "Ver cardápio público", icon: ExternalLink },
 ];
 

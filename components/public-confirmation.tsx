@@ -5,6 +5,7 @@ import { WebOrderStatus } from "@prisma/client";
 
 import { type WebOrderDto } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
   PENDING_PAYMENT: "Recebido",
@@ -80,19 +81,33 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
       <div className="public-checkout-block">
         <h2>Resumo do pedido</h2>
         <ul className="public-checkout-summary">
-          {order.items.map((item) => (
-            <li key={item.id}>
-              <span>
-                {item.productName} × {item.quantity}
-                {item.promotionId && item.originalUnitPriceCents ? (
-                  <small className="public-order-promo-note">
-                    {formatCurrency(item.originalUnitPriceCents)} por {formatCurrency(item.unitPriceCents)} cada
-                  </small>
-                ) : null}
-              </span>
-              <strong>{formatCurrency(item.lineTotalCents)}</strong>
+          {order.items.map((item) => {
+            const savings = item.promotionId && item.originalUnitPriceCents
+              ? calculatePromotionSavings(item.originalUnitPriceCents, item.unitPriceCents)
+              : null;
+
+            return (
+              <li key={item.id}>
+                <span>
+                  {item.productName} × {item.quantity}
+                  {item.promotionId && item.originalUnitPriceCents ? (
+                    <small className="public-order-promo-note">
+                      De: {formatCurrency(item.originalUnitPriceCents)} Por:{" "}
+                      {formatCurrency(item.unitPriceCents)} cada
+                      {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
+                    </small>
+                  ) : null}
+                </span>
+                <strong>{formatCurrency(item.lineTotalCents)}</strong>
+              </li>
+            );
+          })}
+          {order.deliveryFeeCents > 0 ? (
+            <li>
+              <span>Frete</span>
+              <strong>{formatCurrency(order.deliveryFeeCents)}</strong>
             </li>
-          ))}
+          ) : null}
           <li className="public-cart-summary">
             <span>Total</span>
             <strong>{formatCurrency(order.totalCents)}</strong>

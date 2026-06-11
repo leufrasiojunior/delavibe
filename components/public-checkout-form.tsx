@@ -17,6 +17,7 @@ import { type CustomerAddressDto } from "@/lib/schemas/customer-address";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { webOrderSchema } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 import { formatPhoneInputBr } from "@/lib/utils/strings";
 import { ViaCepError, fetchAddressByCep, normalizeCepDigits } from "@/lib/utils/viacep";
 
@@ -256,6 +257,9 @@ export function PublicCheckoutForm({
             <label className="field">
               <span>Telefone</span>
               <input value={customer.phone} disabled />
+              <small className="muted">
+                Informe um número com DDD que tenha WhatsApp. Podemos entrar em contato sobre o pedido.
+              </small>
             </label>
           </div>
         ) : (
@@ -284,6 +288,9 @@ export function PublicCheckoutForm({
                 maxLength={16}
                 required
               />
+              <small className="muted">
+                Use um número com DDD que tenha WhatsApp. Podemos entrar em contato sobre o pedido.
+              </small>
             </label>
           </div>
         )}
@@ -322,7 +329,9 @@ export function PublicCheckoutForm({
             />
             <span>
               <strong>Entregar no meu endereço</strong>
-              <span className="muted">Combinaremos a entrega após o pagamento.</span>
+              <span className="muted">
+                Combinaremos a entrega após o pagamento. O valor da entrega poderá ser informado pelo WhatsApp.
+              </span>
             </span>
           </label>
         </div>
@@ -459,6 +468,9 @@ export function PublicCheckoutForm({
           {items.map((item) => {
             const product = productsLookup[item.productId];
             const lineTotal = (product?.effectivePriceCents ?? 0) * item.quantity;
+            const savings = product?.promotion
+              ? calculatePromotionSavings(product.priceCents, product.effectivePriceCents)
+              : null;
             return (
               <li key={item.productId} className="public-checkout-summary-row">
                 {product ? (
@@ -470,8 +482,11 @@ export function PublicCheckoutForm({
                   <strong>{product?.name ?? "Produto indisponível"}</strong>
                   {product?.promotion ? (
                     <span className="public-promo-price compact">
-                      <span>{formatCurrency(product.priceCents)} cada</span>
-                      <strong>{formatCurrency(product.effectivePriceCents)} cada</strong>
+                      <span>De: {formatCurrency(product.priceCents)} cada</span>
+                      <strong>
+                        Por: {formatCurrency(product.effectivePriceCents)} cada
+                      </strong>
+                      {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
                     </span>
                   ) : (
                     <span className="muted">{formatCurrency(product?.priceCents ?? 0)} cada</span>

@@ -8,6 +8,7 @@ import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 
 type PublicCartProps = {
   productsLookup: Record<string, PublicProductDto>;
@@ -78,6 +79,9 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
           }
 
           const lineTotal = product.effectivePriceCents * item.quantity;
+          const savings = product.promotion
+            ? calculatePromotionSavings(product.priceCents, product.effectivePriceCents)
+            : null;
           return (
             <li key={item.productId} className="public-cart-line">
               <ProductMedia product={product} size="lg" />
@@ -85,8 +89,11 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
                 <strong>{product.name}</strong>
                 {product.promotion ? (
                   <span className="public-promo-price compact">
-                    <span>{formatCurrency(product.priceCents)} cada</span>
-                    <strong>{formatCurrency(product.effectivePriceCents)} cada</strong>
+                    <span>De: {formatCurrency(product.priceCents)} cada</span>
+                    <strong>
+                      Por: {formatCurrency(product.effectivePriceCents)} cada
+                    </strong>
+                    {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
                   </span>
                 ) : (
                   <span className="muted">{formatCurrency(product.priceCents)} cada</span>

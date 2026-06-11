@@ -1,9 +1,17 @@
+import "dotenv/config";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, StockMovementReason } from "@prisma/client";
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://delavibe:change-me-local-only@localhost:5432/delavibe?schema=public";
+function getRequiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} precisa estar definida no ambiente para rodar o seed.`);
+  }
+  return value;
+}
+
+const connectionString = getRequiredEnv("DATABASE_URL");
 
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });

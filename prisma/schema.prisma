@@ -253,6 +253,14 @@ model RateLimitBucket {
   @@index([resetAt])
 }
 
+model AppSettings {
+  id                      String   @id @default("app")
+  whatsappContactPhone    String?
+  webOrderWhatsappMessage String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
 model Customer {
   id                      String            @id @default(cuid())
   email                   String            @unique
@@ -316,6 +324,7 @@ model WebOrder {
   customer            Customer            @relation(fields: [customerId], references: [id])
   status              WebOrderStatus      @default(PENDING_PAYMENT)
   deliveryMode        DeliveryMode
+  deliveryFeeCents    Int                 @default(0)
   totalCents          Int
   notes               String?
   addressId           String?
