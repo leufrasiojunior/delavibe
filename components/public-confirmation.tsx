@@ -6,6 +6,7 @@ import { WebOrderStatus } from "@prisma/client";
 import { type WebOrderDto } from "@/lib/schemas/web-order";
 import { formatCurrency } from "@/lib/utils/money";
 import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
+import { PublicOrderPushToggle } from "@/components/public-order-push-toggle";
 
 const STATUS_LABELS: Record<WebOrderStatus, string> = {
   PENDING_PAYMENT: "Recebido",
@@ -55,6 +56,8 @@ export function PublicConfirmation({ order, storeInfo }: PublicConfirmationProps
           Status atual: <strong>{STATUS_LABELS[order.status]}</strong>
         </p>
       </div>
+
+      <PublicOrderPushToggle orderId={order.id} />
 
       <div className="public-checkout-block">
         <h2>{isPickup ? "Retirada no local" : "Entrega no endereço"}</h2>

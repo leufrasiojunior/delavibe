@@ -15,6 +15,10 @@ import {
   webOrderStatusTransitionSchema,
 } from "@/lib/schemas/web-order";
 import {
+  buildCustomerOrderStatusPushPayload,
+  shouldNotifyCustomerForWebOrderStatus,
+} from "@/lib/services/push-notification-service";
+import {
   cancelingRevertsStock,
   isTerminalStatus,
   isValidTransition,
@@ -142,6 +146,31 @@ test("cancelingRevertsStock cobre estados não-terminais com itens", () => {
   assert.equal(cancelingRevertsStock(WebOrderStatus.READY), true);
   assert.equal(cancelingRevertsStock(WebOrderStatus.DELIVERED), false);
   assert.equal(cancelingRevertsStock(WebOrderStatus.CANCELLED), false);
+});
+
+test("shouldNotifyCustomerForWebOrderStatus notifica apenas saída para entrega e finalização", () => {
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.PENDING_PAYMENT), false);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.PREPARING), false);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.READY), false);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.OUT_FOR_DELIVERY), true);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.PAID), false);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.DELIVERED), true);
+  assert.equal(shouldNotifyCustomerForWebOrderStatus(WebOrderStatus.CANCELLED), false);
+});
+
+test("buildCustomerOrderStatusPushPayload aponta para confirmação pública do pedido", () => {
+  const payload = buildCustomerOrderStatusPushPayload({
+    orderId: "ckorder0000000000000000000",
+    status: WebOrderStatus.OUT_FOR_DELIVERY,
+  });
+
+  assert.equal(payload.title, "Pedido saiu para entrega");
+  assert.equal(payload.tag, "order:ckorder0000000000000000000:customer:OUT_FOR_DELIVERY");
+  assert.deepEqual(payload.data, {
+    orderId: "ckorder0000000000000000000",
+    status: WebOrderStatus.OUT_FOR_DELIVERY,
+    url: "/pedido/ckorder0000000000000000000/confirmacao",
+  });
 });
 
 test("webOrderStatusTransitionSchema exige nota quando cancelando", async () => {

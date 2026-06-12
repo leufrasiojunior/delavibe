@@ -38,7 +38,8 @@ export type RateLimitPolicyName =
   | "write_authenticated"
   | "customer_register"
   | "customer_login"
-  | "web_order_create";
+  | "web_order_create"
+  | "public_push";
 
 const policies: Record<RateLimitPolicyName, RateLimitPolicy> = {
   auth_login: {
@@ -71,6 +72,10 @@ const policies: Record<RateLimitPolicyName, RateLimitPolicy> = {
   },
   web_order_create: {
     limit: 10,
+    windowMs: 15 * 60 * 1000,
+  },
+  public_push: {
+    limit: 60,
     windowMs: 15 * 60 * 1000,
   },
 };
@@ -123,6 +128,8 @@ export function buildRateLimitKey(
     case "customer_register":
     case "web_order_create":
       return `${policyName}:${ipAddress}`;
+    case "public_push":
+      return `${policyName}:${ipAddress}:${route}`;
     case "auth_logout":
       return `${policyName}:${session?.user.id || "anonymous"}:${ipAddress}`;
     case "read_authenticated":

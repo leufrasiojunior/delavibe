@@ -289,6 +289,24 @@ test("limita escritas autenticadas por usuário, IP e rota", async () => {
   );
 });
 
+test("rate limit publico de push usa IP e rota do pedido", async () => {
+  const first = new NextRequest("http://localhost/api/web-orders/order-1/push/subscribe", {
+    method: "POST",
+  });
+  const second = new NextRequest("http://localhost/api/web-orders/order-2/push/subscribe", {
+    method: "POST",
+  });
+
+  assert.equal(
+    buildRateLimitKey("public_push", first, null),
+    "public_push:local:/api/web-orders/order-1/push/subscribe",
+  );
+  assert.equal(
+    buildRateLimitKey("public_push", second, null),
+    "public_push:local:/api/web-orders/order-2/push/subscribe",
+  );
+});
+
 test("rejeita imagePath remoto ou com path traversal", async () => {
   await assert.rejects(
     () =>
