@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 import { DeliveryMode } from "@prisma/client";
@@ -85,12 +85,15 @@ export function PublicCheckoutForm({
   const [cepLookupError, setCepLookupError] = useState<string | null>(null);
   const [addressRevealed, setAddressRevealed] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isOrderCompleted, setIsOrderCompleted] = useState(false);
+  const isOrderCompletedRef = useRef(false);
 
   useEffect(() => {
+    if (isOrderCompleted || isOrderCompletedRef.current) return;
     if (isHydrated && items.length === 0) {
       router.replace("/carrinho");
     }
-  }, [isHydrated, items.length, router]);
+  }, [isHydrated, isOrderCompleted, items.length, router]);
 
   useEffect(() => {
     if (deliveryMode !== DeliveryMode.DELIVERY) return;
@@ -205,8 +208,10 @@ export function PublicCheckoutForm({
         webOrderSchema,
       )
         .then((order) => {
+          isOrderCompletedRef.current = true;
+          setIsOrderCompleted(true);
           clear();
-          router.push(`/pedido/${order.id}/confirmacao`);
+          router.replace(`/pedido/${order.id}/confirmacao`);
         })
         .catch((caught: unknown) => {
           const message = caught instanceof Error ? caught.message : "Falha ao finalizar pedido.";

@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { WebOrderStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
@@ -27,6 +28,58 @@ type NewOrderPushPayload = {
   customerName: string;
   totalCents: number;
 };
+
+type NotificationPayload = {
+  title: string;
+  body: string;
+  tag: string;
+  data: {
+    orderId: string;
+    url: string;
+    status?: WebOrderStatus;
+  };
+};
+
+type CustomerStatusPushPayload = {
+  orderId: string;
+  customerId: string;
+  status: WebOrderStatus;
+};
+
+const CUSTOMER_PUSH_STATUS_COPY: Partial<Record<WebOrderStatus, Pick<NotificationPayload, "title" | "body">>> = {
+  OUT_FOR_DELIVERY: {
+    title: "Pedido saiu para entrega",
+    body: "Seu pedido saiu para entrega.",
+  },
+  DELIVERED: {
+    title: "Pedido finalizado",
+    body: "Seu pedido foi entregue.",
+  },
+};
+
+export function shouldNotifyCustomerForWebOrderStatus(status: WebOrderStatus): boolean {
+  return status === WebOrderStatus.OUT_FOR_DELIVERY || status === WebOrderStatus.DELIVERED;
+}
+
+export function buildCustomerOrderStatusPushPayload(payload: {
+  orderId: string;
+  status: WebOrderStatus;
+}): NotificationPayload {
+  const copy = CUSTOMER_PUSH_STATUS_COPY[payload.status];
+  if (!copy) {
+    throw new Error(`Status ${payload.status} nao possui payload de push para cliente.`);
+  }
+
+  return {
+    ...copy,
+    tag: `order:${payload.orderId}:customer:${payload.status}`,
+    data: {
+      orderId: payload.orderId,
+      status: payload.status,
+      url: `/pedido/${payload.orderId}/confirmacao`,
+    },
+  };
+}
 
 export async function sendNewOrderPushToAdmins(payload: NewOrderPushPayload): Promise<void> {
   if (!ensureVapidConfigured()) {
@@ -86,6 +139,72 @@ export async function sendNewOrderPushToAdmins(payload: NewOrderPushPayload): Pr
   if (failed > 0) {
     logger.error("push: algumas notificacoes falharam", {
       orderId: payload.orderId,
+      failed,
+      total: subscriptions.length,
+    });
+  }
+}
+
+export async function sendWebOrderStatusPushToCustomer(
+  payload: CustomerStatusPushPayload,
+): Promise<void> {
+  if (!shouldNotifyCustomerForWebOrderStatus(payload.status)) {
+    return;
+  }
+
+  if (!ensureVapidConfigured()) {
+    logger.warn("push: VAPID nao configurado, pulando envio ao cliente", {
+      orderId: payload.orderId,
+      status: payload.status,
+    });
+    return;
+  }
+
+  const subscriptions = await db.customerPushSubscription.findMany({
+    where: { customerId: payload.customerId },
+  });
+
+  if (subscriptions.length === 0) {
+    return;
+  }
+
+  const notificationPayload = JSON.stringify(
+    buildCustomerOrderStatusPushPayload({
+      orderId: payload.orderId,
+      status: payload.status,
+    }),
+  );
+
+  const results = await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
+          notificationPayload,
+        );
+        await db.customerPushSubscription.update({
+          where: { id: sub.id },
+          data: { lastUsedAt: new Date() },
+        });
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number } | null)?.statusCode;
+        if (statusCode === 404 || statusCode === 410) {
+          await db.customerPushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+          return;
+        }
+        throw err;
+      }
+    }),
+  );
+
+  const failed = results.filter((r) => r.status === "rejected").length;
+  if (failed > 0) {
+    logger.error("push: algumas notificacoes do cliente falharam", {
+      orderId: payload.orderId,
+      status: payload.status,
       failed,
       total: subscriptions.length,
     });

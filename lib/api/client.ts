@@ -14,17 +14,43 @@ export class ApiClientError extends Error {
   }
 }
 
-function getCsrfToken() {
+function getRequestPath(input: RequestInfo | URL) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (typeof input === "string" || input instanceof URL) {
+    return new URL(input, window.location.origin).pathname;
+  }
+
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+
+  return null;
+}
+
+function shouldUseCustomerCsrf(input: RequestInfo | URL) {
+  const path = getRequestPath(input);
+  return (
+    path?.startsWith("/api/customer/") ||
+    (path?.startsWith("/api/web-orders/") && path.endsWith("/push/subscribe"))
+  );
+}
+
+function getCsrfToken(input: RequestInfo | URL) {
   if (typeof document === "undefined") {
     return null;
   }
 
   const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
-  const cookieNames = [
-    process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME,
-    "__Host-pdv_csrf",
-    "pdv_csrf",
-  ].filter((value): value is string => Boolean(value));
+  const cookieNames = shouldUseCustomerCsrf(input)
+    ? ["__Host-customer_csrf", "customer_csrf"]
+    : [
+        process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME,
+        "__Host-pdv_csrf",
+        "pdv_csrf",
+      ].filter((value): value is string => Boolean(value));
 
   for (const cookieName of cookieNames) {
     for (const cookie of cookies) {
@@ -114,7 +140,7 @@ export async function apiFetch<TSchema extends z.ZodTypeAny>(
   }
 
   if (["POST", "PATCH", "DELETE", "PUT"].includes(method)) {
-    const csrfToken = getCsrfToken();
+    const csrfToken = getCsrfToken(input);
 
     if (csrfToken) {
       headers.set("x-csrf-token", csrfToken);
@@ -137,7 +163,7 @@ export async function apiUpload<TSchema extends z.ZodTypeAny>(
   init: Omit<RequestInit, "body" | "headers"> & { headers?: HeadersInit } = {},
 ): Promise<z.infer<TSchema>> {
   const headers = new Headers(init.headers || {});
-  const csrfToken = getCsrfToken();
+  const csrfToken = getCsrfToken(input);
 
   if (csrfToken) {
     headers.set("x-csrf-token", csrfToken);

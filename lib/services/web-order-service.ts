@@ -20,7 +20,11 @@ import {
 } from "@/lib/schemas/web-order";
 import { logAuditEvent } from "@/lib/services/audit-service";
 import { selectActivePromotionForTarget } from "@/lib/services/promotion-service";
-import { sendNewOrderPushToAdmins } from "@/lib/services/push-notification-service";
+import {
+  sendNewOrderPushToAdmins,
+  sendWebOrderStatusPushToCustomer,
+  shouldNotifyCustomerForWebOrderStatus,
+} from "@/lib/services/push-notification-service";
 import {
   cancelingRevertsStock,
   isValidTransition,
@@ -600,6 +604,21 @@ export async function updateWebOrderStatus(
   });
 
   logger.info("web_order_status_changed", { orderId, toStatus, finalStatus: result.status });
+
+  if (shouldNotifyCustomerForWebOrderStatus(result.status)) {
+    void sendWebOrderStatusPushToCustomer({
+      orderId: result.id,
+      customerId: result.customerId,
+      status: result.status,
+    }).catch((err) => {
+      logger.error("push cliente falhou ao notificar status do pedido", {
+        err: err instanceof Error ? err.message : String(err),
+        orderId: result.id,
+        status: result.status,
+      });
+    });
+  }
+
   return toWebOrderDto(result);
 }
 

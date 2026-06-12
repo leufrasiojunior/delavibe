@@ -276,11 +276,27 @@ model Customer {
   addresses               CustomerAddress[]
   sessions                CustomerSession[]
   webOrders               WebOrder[]
+  pushSubscriptions       CustomerPushSubscription[]
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
   @@index([deletedAt])
   @@index([isGuest])
+}
+
+model CustomerPushSubscription {
+  id         String   @id @default(cuid())
+  customerId String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model CustomerAddress {
