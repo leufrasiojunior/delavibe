@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { LogIn, LogOut, MessageCircle, ShoppingCart, UserPlus } from "lucide-react";
 
 import { apiFetch } from "@/lib/api/client";
@@ -32,6 +32,8 @@ export function PublicShell({ customer, whatsappContactPhone, children }: Public
   const { count, isHydrated } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [shouldPulseCartBadge, setShouldPulseCartBadge] = useState(false);
+  const previousCartCountRef = useRef<number | null>(null);
   const whatsappUrl = buildWhatsappUrl(whatsappContactPhone);
 
   function handleLogout() {
@@ -49,6 +51,24 @@ export function PublicShell({ customer, whatsappContactPhone, children }: Public
 
   const cartBadgeCount = isHydrated ? count : 0;
 
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const previousCount = previousCartCountRef.current;
+    previousCartCountRef.current = count;
+
+    if (previousCount === null || previousCount === count) return;
+
+    setShouldPulseCartBadge(false);
+    const frameId = window.requestAnimationFrame(() => setShouldPulseCartBadge(true));
+    const timeoutId = window.setTimeout(() => setShouldPulseCartBadge(false), 650);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [count, isHydrated]);
+
   return (
     <div className="public-shell">
       <header className="public-header">
@@ -62,7 +82,10 @@ export function PublicShell({ customer, whatsappContactPhone, children }: Public
             <Link href="/carrinho" className="public-cart-link" aria-label="Abrir carrinho">
               <ShoppingCart size={16} aria-hidden />
               <span>Carrinho</span>
-              <span className="public-cart-badge" data-empty={cartBadgeCount === 0}>
+              <span
+                className={shouldPulseCartBadge ? "public-cart-badge is-pulsing" : "public-cart-badge"}
+                data-empty={cartBadgeCount === 0}
+              >
                 {cartBadgeCount}
               </span>
             </Link>

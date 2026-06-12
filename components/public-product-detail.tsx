@@ -25,6 +25,7 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const wasJustAdded = feedback !== null;
   const savings = product.promotion
     ? calculatePromotionSavings(product.priceCents, product.effectivePriceCents)
     : null;
@@ -43,7 +44,7 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
         Voltar ao cardápio
       </Link>
 
-      <div className="public-product-detail">
+      <div className={wasJustAdded ? "public-product-detail is-cart-added" : "public-product-detail"}>
         <img
           src={buildImageUrl(product)}
           alt={product.name}
@@ -90,7 +91,11 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
               />
             </label>
 
-            <button type="button" className="button button-primary" onClick={handleAdd}>
+            <button
+              type="button"
+              className={wasJustAdded ? "button button-primary is-cart-added" : "button button-primary"}
+              onClick={handleAdd}
+            >
               <ShoppingCart size={16} aria-hidden />
               Adicionar ao carrinho
             </button>

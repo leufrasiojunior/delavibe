@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 import { DeliveryMode } from "@prisma/client";
 
@@ -334,7 +334,8 @@ export function PublicCheckoutForm({
             />
             <span>
               <strong>Entregar no meu endereço</strong>
-              <span className="muted">
+              <span className="public-delivery-fee-alert">
+                <AlertTriangle size={14} aria-hidden />
                 Combinaremos a entrega após o pagamento. O valor da entrega poderá ser informado pelo WhatsApp.
               </span>
             </span>
@@ -497,21 +498,23 @@ export function PublicCheckoutForm({
                     <span className="muted">{formatCurrency(product?.priceCents ?? 0)} cada</span>
                   )}
                 </div>
-                {product ? (
-                  <QuantityStepper
-                    size="sm"
-                    value={item.quantity}
-                    onChange={(next) => updateQuantity(item.productId, next)}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="button button-secondary compact"
-                    onClick={() => removeItem(item.productId)}
-                  >
-                    Remover
-                  </button>
-                )}
+                <div className="public-checkout-summary-actions">
+                  {product ? (
+                    <QuantityStepper
+                      size="sm"
+                      value={item.quantity}
+                      onChange={(next) => updateQuantity(item.productId, next)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button-secondary compact"
+                      onClick={() => removeItem(item.productId)}
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
                 <strong className="public-checkout-summary-total">
                   {formatCurrency(lineTotal)}
                 </strong>
