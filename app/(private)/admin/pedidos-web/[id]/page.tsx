@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { WebOrderDetail } from "@/components/web-order-detail";
 import { AppError } from "@/lib/api/response";
 import { requireServerSession } from "@/lib/auth/session";
+import { getAppSettings } from "@/lib/services/app-settings-service";
 import { getWebOrderWithAccessLog } from "@/lib/services/web-order-service";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,10 @@ export default async function WebOrderDetailPage({ params }: WebOrderDetailPageP
   const { id } = await params;
 
   try {
-    const order = await getWebOrderWithAccessLog(id, session.user.id, "server");
+    const [order, settings] = await Promise.all([
+      getWebOrderWithAccessLog(id, session.user.id, "server"),
+      getAppSettings(),
+    ]);
 
     return (
       <div className="stack">
@@ -31,7 +35,10 @@ export default async function WebOrderDetailPage({ params }: WebOrderDetailPageP
           </div>
         </section>
 
-        <WebOrderDetail initialOrder={order} />
+        <WebOrderDetail
+          initialOrder={order}
+          webOrderWhatsappMessage={settings.webOrderWhatsappMessage}
+        />
       </div>
     );
   } catch (error) {

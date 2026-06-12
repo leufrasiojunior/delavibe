@@ -3,11 +3,14 @@ import { z } from "zod";
 
 import { customerAddressInputSchema } from "@/lib/schemas/customer-address";
 import { guestCustomerInputSchema } from "@/lib/schemas/customer";
+import { optionalMoneyField } from "@/lib/schemas/parsers";
 import {
   notesFieldSchema,
   passwordFieldSchema,
   searchQueryFieldSchema,
 } from "@/lib/schemas/string-fields";
+import { promotionTypeSchema } from "@/lib/schemas/promotion";
+import { toCents } from "@/lib/utils/money";
 
 const webOrderStatusSchema = z.nativeEnum(WebOrderStatus);
 const paymentMethodSchema = z.nativeEnum(PaymentMethod);
@@ -143,6 +146,13 @@ export const webOrderStatusTransitionSchema = z
     }
   });
 
+export const webOrderDeliveryFeeInputSchema = z.object({
+  deliveryFee: optionalMoneyField({
+    invalid: "Informe um valor de frete válido.",
+    min: "O frete não pode ser negativo.",
+  }).transform((value) => toCents(value ?? 0)),
+});
+
 export const webOrderListFiltersSchema = z.object({
   status: z.array(webOrderStatusSchema).optional(),
   query: searchQueryFieldSchema,
@@ -215,6 +225,9 @@ export type WebOrderListResponse = z.infer<typeof webOrderListResponseSchema>;
 export const webOrderItemSchema = z.object({
   id: z.string(),
   productId: z.string(),
+  promotionId: z.string().nullable(),
+  promotionType: promotionTypeSchema.nullable(),
+  originalUnitPriceCents: z.number().int().nullable(),
   productName: z.string(),
   quantity: z.number().int(),
   unitPriceCents: z.number().int(),
@@ -240,6 +253,7 @@ export const webOrderSchema = z.object({
   customerEmail: z.string(),
   customerPhone: z.string(),
   status: webOrderStatusSchema,
+  deliveryFeeCents: z.number().int(),
   totalCents: z.number().int(),
   notes: z.string().nullable(),
   addressId: z.string().nullable(),
@@ -267,6 +281,7 @@ export const webOrderSchema = z.object({
 });
 
 export type WebOrderCreateInput = z.infer<typeof webOrderCreateInputSchema>;
+export type WebOrderDeliveryFeeInput = z.infer<typeof webOrderDeliveryFeeInputSchema>;
 export type WebOrderStatusTransition = z.infer<typeof webOrderStatusTransitionSchema>;
 export type WebOrderPaymentInput = z.infer<typeof webOrderPaymentInputSchema>;
 export type WebOrderListFilters = z.infer<typeof webOrderListFiltersSchema>;

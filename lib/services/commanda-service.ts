@@ -14,6 +14,10 @@ import {
 } from "@/lib/schemas/commanda";
 import { calculateCommandaTotals, sumPaymentCents } from "@/lib/utils/totals";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import {
+  getPromotionStatus,
+  promotionAppliesToTarget,
+} from "@/lib/services/promotion-service";
 import { buildCommandaItemAddition, buildCommandaItemQuantityUpdate } from "@/lib/utils/commanda-items";
 
 const commandaInclude = {
@@ -51,6 +55,9 @@ function toCommandaDto(commanda: CommandaWithRelations): CommandaDto {
     items: commanda.items.map((item) => ({
       id: item.id,
       productId: item.productId,
+      promotionId: item.promotionId,
+      promotionType: item.promotionType,
+      originalUnitPriceCents: item.originalUnitPriceCents,
       productName: item.product.name,
       productSku: item.product.sku ?? item.product.barcode,
       quantity: item.quantity,
@@ -282,22 +289,64 @@ export async function addItemToCommanda(
       );
     }
 
+    const promotion = input.promotionId
+      ? await tx.promotion.findFirst({
+          where: {
+            id: input.promotionId,
+            productId: product.id,
+            isActive: true,
+          },
+        })
+      : null;
+
+    if (input.promotionId && !promotion) {
+      throw new AppError(
+        400,
+        "promotion_unavailable",
+        "Promoção não encontrada ou indisponível para esse produto.",
+        { promotionId: input.promotionId, productId: product.id },
+        "Atualize o catálogo da comanda e tente novamente.",
+      );
+    }
+
+    if (promotion) {
+      const now = new Date();
+      const isValidPromotion =
+        getPromotionStatus(promotion, now) === "active" &&
+        promotionAppliesToTarget(promotion.type, "local") &&
+        promotion.promotionalPriceCents < product.priceCents;
+
+      if (!isValidPromotion) {
+        throw new AppError(
+          400,
+          "promotion_unavailable",
+          "Promoção indisponível para consumo no local.",
+          { promotionId: promotion.id, productId: product.id },
+          "Atualize o catálogo da comanda e tente novamente.",
+        );
+      }
+    }
+
+    const appliedUnitPriceCents = promotion?.promotionalPriceCents ?? product.priceCents;
+
     const existingItem = await tx.comandaItem.findFirst({
       where: {
         comandaId: commandaId,
         productId: input.productId,
+        promotionId: promotion?.id ?? null,
+        unitPriceCents: appliedUnitPriceCents,
       },
       orderBy: { createdAt: "asc" },
     });
 
-    const nextItemState = buildCommandaItemAddition(existingItem?.quantity ?? 0, input.quantity, product.priceCents);
+    const nextItemState = buildCommandaItemAddition(existingItem?.quantity ?? 0, input.quantity, appliedUnitPriceCents);
 
     const item = existingItem
       ? await tx.comandaItem.update({
           where: { id: existingItem.id },
           data: {
             quantity: nextItemState.nextQuantity,
-            unitPriceCents: product.priceCents,
+            unitPriceCents: appliedUnitPriceCents,
             subtotalCents: nextItemState.subtotalCents,
           },
         })
@@ -305,8 +354,11 @@ export async function addItemToCommanda(
           data: {
             comandaId: commandaId,
             productId: input.productId,
+            promotionId: promotion?.id ?? null,
+            promotionType: promotion?.type ?? null,
+            originalUnitPriceCents: promotion ? product.priceCents : null,
             quantity: nextItemState.nextQuantity,
-            unitPriceCents: product.priceCents,
+            unitPriceCents: appliedUnitPriceCents,
             subtotalCents: nextItemState.subtotalCents,
           },
         });
@@ -416,7 +468,7 @@ export async function updateCommandaItemQuantity(
       );
     }
 
-    const nextItemState = buildCommandaItemQuantityUpdate(item.quantity, input.quantity, item.product.priceCents);
+    const nextItemState = buildCommandaItemQuantityUpdate(item.quantity, input.quantity, item.unitPriceCents);
 
     if (nextItemState.quantityDelta === 0) {
       const currentCommanda = await loadCommandaOrThrow(tx, commandaId);
@@ -436,7 +488,7 @@ export async function updateCommandaItemQuantity(
       where: { id: item.id },
       data: {
         quantity: nextItemState.nextQuantity,
-        unitPriceCents: item.product.priceCents,
+        unitPriceCents: item.unitPriceCents,
         subtotalCents: nextItemState.subtotalCents,
       },
     });

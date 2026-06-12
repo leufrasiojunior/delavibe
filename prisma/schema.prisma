@@ -54,6 +54,12 @@ enum DeliveryMode {
   DELIVERY
 }
 
+enum PromotionType {
+  local
+  site
+  both
+}
+
 model User {
   id                 String              @id @default(cuid())
   name               String
@@ -116,11 +122,30 @@ model Product {
   items         ComandaItem[]
   stockMoves    StockMovement[]
   webOrderItems WebOrderItem[]
+  promotions    Promotion[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   @@index([name])
   @@index([category])
+}
+
+model Promotion {
+  id                    String         @id @default(cuid())
+  productId             String
+  product               Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type                  PromotionType
+  promotionalPriceCents Int
+  startsAt              DateTime
+  endsAt                DateTime
+  isActive              Boolean        @default(true)
+  commandaItems         ComandaItem[]
+  webOrderItems         WebOrderItem[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([productId, type, startsAt, endsAt])
+  @@index([isActive, startsAt, endsAt])
 }
 
 model Commanda {
@@ -146,19 +171,24 @@ model Commanda {
 }
 
 model ComandaItem {
-  id             String   @id @default(cuid())
-  comandaId      String
-  productId      String
-  quantity       Int
-  unitPriceCents Int
-  subtotalCents  Int
-  comanda        Commanda @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  product        Product  @relation(fields: [productId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                     String         @id @default(cuid())
+  comandaId              String
+  productId              String
+  promotionId            String?
+  promotion              Promotion?     @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  promotionType          PromotionType?
+  originalUnitPriceCents Int?
+  quantity               Int
+  unitPriceCents         Int
+  subtotalCents          Int
+  comanda                Commanda       @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  product                Product        @relation(fields: [productId], references: [id])
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   @@index([comandaId, createdAt])
   @@index([productId])
+  @@index([promotionId])
 }
 
 model Payment {
@@ -221,6 +251,14 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model AppSettings {
+  id                      String   @id @default("app")
+  whatsappContactPhone    String?
+  webOrderWhatsappMessage String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model Customer {
@@ -286,6 +324,7 @@ model WebOrder {
   customer            Customer            @relation(fields: [customerId], references: [id])
   status              WebOrderStatus      @default(PENDING_PAYMENT)
   deliveryMode        DeliveryMode
+  deliveryFeeCents    Int                 @default(0)
   totalCents          Int
   notes               String?
   addressId           String?
@@ -310,19 +349,24 @@ model WebOrder {
 }
 
 model WebOrderItem {
-  id             String   @id @default(cuid())
-  webOrderId     String
-  webOrder       WebOrder @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id])
-  productName    String
-  quantity       Int
-  unitPriceCents Int
-  lineTotalCents Int
-  createdAt      DateTime @default(now())
+  id                     String         @id @default(cuid())
+  webOrderId             String
+  webOrder               WebOrder       @relation(fields: [webOrderId], references: [id], onDelete: Cascade)
+  productId              String
+  product                Product        @relation(fields: [productId], references: [id])
+  promotionId            String?
+  promotion              Promotion?     @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  promotionType          PromotionType?
+  originalUnitPriceCents Int?
+  productName            String
+  quantity               Int
+  unitPriceCents         Int
+  lineTotalCents         Int
+  createdAt              DateTime       @default(now())
 
   @@index([webOrderId, createdAt])
   @@index([productId])
+  @@index([promotionId])
 }
 
 model WebOrderStatusLog {
@@ -350,14 +394,4 @@ model WebOrderPayment {
 
   @@index([webOrderId])
   @@index([method])
-}
-
-model WhatsappInstance {
-  id               String    @id @default(cuid())
-  instanceName     String    @unique
-  instanceId       String
-  apikeyCiphertext String
-  webhookUrl       String?
-  createdAt        DateTime  @default(now())
-  lastConnectedAt  DateTime?
 }

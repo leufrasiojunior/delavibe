@@ -1,0 +1,84 @@
+# Ambiente de desenvolvimento com hot reload.
+# Sobe a aplicacao Next.js e um Postgres local na mesma stack.
+name: delavibe-dev
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-delavibe}
+      POSTGRES_USER: ${POSTGRES_USER:-delavibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "${DEV_POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-delavibe} -d ${POSTGRES_DB:-delavibe}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    command: >
+      sh -c "npx prisma generate &&
+      npx prisma migrate deploy &&
+      npm run dev -- --hostname 0.0.0.0"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-delavibe}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/${POSTGRES_DB:-delavibe}?schema=public
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pdv_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-pdv_csrf}
+      NEXT_PUBLIC_CSRF_COOKIE_NAME: ${NEXT_PUBLIC_CSRF_COOKIE_NAME:-pdv_csrf}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      CUSTOMER_SESSION_COOKIE_NAME: ${CUSTOMER_SESSION_COOKIE_NAME:-customer_session}
+      CUSTOMER_CSRF_COOKIE_NAME: ${CUSTOMER_CSRF_COOKIE_NAME:-customer_csrf}
+      CUSTOMER_SESSION_TTL_HOURS: ${CUSTOMER_SESSION_TTL_HOURS:-168}
+      WEB_ORDER_PENDING_TTL_MINUTES: ${WEB_ORDER_PENDING_TTL_MINUTES:-60}
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
+      TZ: ${TZ:-America/Sao_Paulo}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Dela's Vibe PDV}
+      NEXT_PUBLIC_STORE_NAME: ${NEXT_PUBLIC_STORE_NAME:-Dela's Vibe}
+      NEXT_PUBLIC_STORE_ADDRESS: ${NEXT_PUBLIC_STORE_ADDRESS:-Endereço a configurar}
+      NEXT_PUBLIC_STORE_PHONE: ${NEXT_PUBLIC_STORE_PHONE:-(00) 00000-0000}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "500"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${DEV_APP_HOST_PORT:-3010}:3000"
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+      - next_cache:/app/.next
+      - uploads_data:/app/uploads
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+  app_node_modules:
+  next_cache:
+  uploads_data:

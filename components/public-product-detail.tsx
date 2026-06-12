@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Ban, ShoppingCart } from "lucide-react";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 
 const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
 
@@ -24,6 +25,9 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const savings = product.promotion
+    ? calculatePromotionSavings(product.priceCents, product.effectivePriceCents)
+    : null;
 
   function handleAdd() {
     if (quantity < 1) return;
@@ -48,7 +52,17 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
         <div className="public-product-detail-body">
           <p className="eyebrow">{product.category ?? "Produto"}</p>
           <h1>{product.name}</h1>
-          <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
+          {product.promotion ? (
+            <div className="public-product-detail-price public-promo-price">
+              <span>De: {formatCurrency(product.priceCents)}</span>
+              <strong>
+                Por: {formatCurrency(product.effectivePriceCents)}
+              </strong>
+              {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
+            </div>
+          ) : (
+            <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
+          )}
           {product.stockQty <= 0 ? (
             <p>
               <span className="badge danger">

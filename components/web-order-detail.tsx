@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CircleDollarSign, RotateCcw, XCircle } from "lucide-react";
+import { CircleDollarSign, MessageCircle, RotateCcw, Save, XCircle } from "lucide-react";
 
 import { PaymentMethod, WebOrderStatus } from "@prisma/client";
 
@@ -19,7 +19,9 @@ import {
   parseCurrencyInputToCents,
 } from "@/lib/utils/money";
 import { formatDisplayDate, formatTimeAgo } from "@/lib/utils/date";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 import { formatPhoneBr } from "@/lib/utils/strings";
+import { buildWhatsappUrl } from "@/lib/utils/whatsapp";
 import { WEB_ORDER_TRANSITIONS } from "@/lib/utils/web-order-status";
 import {
   PAYMENT_METHOD_LABELS,
@@ -38,13 +40,15 @@ function isAnonymized(order: WebOrderDto) {
 
 type WebOrderDetailProps = {
   initialOrder: WebOrderDto;
+  webOrderWhatsappMessage: string | null;
 };
 
-export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
+export function WebOrderDetail({ initialOrder, webOrderWhatsappMessage }: WebOrderDetailProps) {
   const router = useRouter();
   const toast = useToast();
   const [order, setOrder] = useState<WebOrderDto>(initialOrder);
   const [isPending, startTransition] = useTransition();
+  const [isSavingDeliveryFee, startDeliveryFeeTransition] = useTransition();
   const [mountedClientTime, setMountedClientTime] = useState<Date | null>(null);
   const cancelDialogRef = useRef<HTMLDialogElement | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
@@ -58,10 +62,17 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
     credit: "",
   });
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState(
+    centsToCurrencyInput(initialOrder.deliveryFeeCents),
+  );
 
   useEffect(() => {
     setMountedClientTime(new Date());
   }, []);
+
+  useEffect(() => {
+    setDeliveryFeeInput(centsToCurrencyInput(order.deliveryFeeCents));
+  }, [order.deliveryFeeCents]);
 
   const allowedTransitions = useMemo(
     () => WEB_ORDER_TRANSITIONS[order.status] ?? [],
@@ -73,6 +84,42 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
     (status) => status !== WebOrderStatus.CANCELLED && status !== WebOrderStatus.DELIVERED,
   );
   const canCancel = allowedTransitions.includes(WebOrderStatus.CANCELLED);
+  const itemsSubtotalCents = order.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+  const canEditDeliveryFee =
+    order.payments.length === 0 &&
+    order.status !== WebOrderStatus.PAID &&
+    order.status !== WebOrderStatus.DELIVERED &&
+    order.status !== WebOrderStatus.CANCELLED;
+
+  function saveDeliveryFee() {
+    if (!canEditDeliveryFee) {
+      toast.error("Não é possível alterar o frete deste pedido.");
+      return;
+    }
+
+    startDeliveryFeeTransition(() => {
+      void apiFetch(
+        `/api/admin/web-orders/${order.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ deliveryFee: deliveryFeeInput }),
+        },
+        webOrderSchema,
+      )
+        .then((updated) => {
+          setOrder(updated);
+          toast.success("Frete atualizado.");
+          router.refresh();
+        })
+        .catch((caught: unknown) => {
+          const message =
+            caught instanceof Error && caught.message
+              ? caught.message
+              : "Falha ao atualizar frete.";
+          toast.error(message);
+        });
+    });
+  }
 
   function performTransition(
     toStatus: WebOrderStatus,
@@ -218,6 +265,9 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
   const phoneLabel = isAnonymized(order) || !order.customerPhone
     ? "—"
     : formatPhoneBr(order.customerPhone);
+  const customerWhatsappUrl = isAnonymized(order)
+    ? null
+    : buildWhatsappUrl(order.customerPhone, webOrderWhatsappMessage);
 
   return (
     <div className="stack web-order-detail">
@@ -279,7 +329,20 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           </div>
           <div>
             <dt>Telefone</dt>
-            <dd>{phoneLabel}</dd>
+            <dd className="web-order-phone-row">
+              <span>{phoneLabel}</span>
+              {customerWhatsappUrl ? (
+                <a
+                  className="button button-secondary compact whatsapp-action-button"
+                  href={customerWhatsappUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <MessageCircle size={14} aria-hidden />
+                  WhatsApp
+                </a>
+              ) : null}
+            </dd>
           </div>
           <div>
             <dt>E-mail</dt>
@@ -348,21 +411,71 @@ export function WebOrderDetail({ initialOrder }: WebOrderDetailProps) {
           <h3>Itens</h3>
         </div>
         <ul className="web-order-items">
-          {order.items.map((item) => (
-            <li key={item.id} className="web-order-item">
-              <div>
-                <strong>{item.productName}</strong>
-                <span className="muted">
-                  {item.quantity} × {formatCurrency(item.unitPriceCents)}
-                </span>
-              </div>
-              <strong>{formatCurrency(item.lineTotalCents)}</strong>
-            </li>
-          ))}
+          {order.items.map((item) => {
+            const savings = item.promotionId && item.originalUnitPriceCents
+              ? calculatePromotionSavings(item.originalUnitPriceCents, item.unitPriceCents)
+              : null;
+
+            return (
+              <li key={item.id} className="web-order-item">
+                <div>
+                  <strong>{item.productName}</strong>
+                  <span className="muted">
+                    {item.quantity} × {formatCurrency(item.unitPriceCents)}
+                  </span>
+                  {item.promotionId && item.originalUnitPriceCents ? (
+                    <span className="table-subtitle">
+                      Promoção aplicada: De: {formatCurrency(item.originalUnitPriceCents)} Por:{" "}
+                      {formatCurrency(item.unitPriceCents)}
+                      {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
+                    </span>
+                  ) : null}
+                </div>
+                <strong>{formatCurrency(item.lineTotalCents)}</strong>
+              </li>
+            );
+          })}
         </ul>
-        <div className="web-order-total">
-          <span>Total</span>
-          <strong>{formatCurrency(order.totalCents)}</strong>
+
+        <div className="web-order-financial-summary">
+          <div className="web-order-financial-row">
+            <span>Subtotal dos itens</span>
+            <strong>{formatCurrency(itemsSubtotalCents)}</strong>
+          </div>
+
+          <div className="web-order-delivery-fee-row">
+            <label className="field">
+              <span>Frete</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={deliveryFeeInput}
+                onChange={(event) => setDeliveryFeeInput(formatCurrencyInput(event.target.value))}
+                placeholder="R$ 0,00"
+                disabled={!canEditDeliveryFee || isSavingDeliveryFee}
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-secondary compact"
+              onClick={saveDeliveryFee}
+              disabled={!canEditDeliveryFee || isSavingDeliveryFee}
+            >
+              <Save size={14} aria-hidden />
+              {isSavingDeliveryFee ? "Salvando..." : "Salvar frete"}
+            </button>
+          </div>
+
+          {!canEditDeliveryFee ? (
+            <p className="muted small">
+              O frete não pode ser alterado depois que o pedido foi pago, entregue ou cancelado.
+            </p>
+          ) : null}
+
+          <div className="web-order-total">
+            <span>Total</span>
+            <strong>{formatCurrency(order.totalCents)}</strong>
+          </div>
         </div>
         {order.payments.length > 0 ? (
           <div className="web-order-payments">

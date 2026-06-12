@@ -10,6 +10,7 @@ import {
 import { customerAddressInputSchema } from "@/lib/schemas/customer-address";
 import {
   webOrderCreateInputSchema,
+  webOrderDeliveryFeeInputSchema,
   webOrderListFiltersSchema,
   webOrderStatusTransitionSchema,
 } from "@/lib/schemas/web-order";
@@ -236,6 +237,19 @@ test("webOrderCreateInputSchema rejeita quantidade < 1", async () => {
     webOrderCreateInputSchema.parseAsync({
       items: [{ productId: "ckxyz0000000000000000000a", quantity: 0 }],
     }),
+  );
+});
+
+test("webOrderDeliveryFeeInputSchema converte frete para centavos e aceita vazio", async () => {
+  const parsed = await webOrderDeliveryFeeInputSchema.parseAsync({ deliveryFee: "R$ 12,50" });
+  assert.equal(parsed.deliveryFee, 1250);
+
+  const empty = await webOrderDeliveryFeeInputSchema.parseAsync({ deliveryFee: "" });
+  assert.equal(empty.deliveryFee, 0);
+
+  await assert.rejects(
+    webOrderDeliveryFeeInputSchema.parseAsync({ deliveryFee: "R$ -1,00" }),
+    /frete não pode ser negativo/i,
   );
 });
 

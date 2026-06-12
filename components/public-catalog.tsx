@@ -2,18 +2,24 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, Check, Plus, Search, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Ban, Check, Percent, Plus, Search, UtensilsCrossed } from "lucide-react";
 
 import { ProductMedia } from "@/components/product-media";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
-import { normalizeText } from "@/lib/utils/text";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
+import {
+  filterPublicCatalogProducts,
+  getDefaultPublicCatalogTab,
+  getPublicCatalogCategoryKey,
+  groupPublicCatalogProducts,
+  PUBLIC_CATALOG_ALL_TAB,
+  PUBLIC_CATALOG_PROMOTIONS_TAB,
+} from "@/lib/utils/public-catalog";
 
 const PLACEHOLDER_IMAGE = "/catalog-placeholder.jpg";
-const ALL_CATEGORIES = "__all__";
-const UNCATEGORIZED_KEY = "Outros";
 
 function buildImageUrl(product: PublicProductDto) {
   if (!product.imagePath) {
@@ -43,8 +49,22 @@ function stockBadge(product: PublicProductDto) {
   return null;
 }
 
-function categoryKey(product: PublicProductDto) {
-  return product.category?.trim() || UNCATEGORIZED_KEY;
+function ProductPrice({ product }: { product: PublicProductDto }) {
+  if (!product.promotion) {
+    return <strong>{formatCurrency(product.priceCents)}</strong>;
+  }
+
+  const savings = calculatePromotionSavings(product.priceCents, product.effectivePriceCents);
+
+  return (
+    <span className="public-promo-price">
+      <span>De: {formatCurrency(product.priceCents)}</span>
+      <strong>
+        Por: {formatCurrency(product.effectivePriceCents)}
+      </strong>
+      {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
+    </span>
+  );
 }
 
 type PublicCatalogProps = {
@@ -53,10 +73,11 @@ type PublicCatalogProps = {
 
 export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORIES);
+  const [activeTab, setActiveTab] = useState<string>(() => getDefaultPublicCatalogTab(initialProducts));
   const { addItem } = useCart();
   const [feedbackProductId, setFeedbackProductId] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const promotionalProductsCount = initialProducts.filter((product) => product.promotion).length;
 
   const setProductQuantity = useCallback((productId: string, next: number) => {
     setQuantities((current) => ({ ...current, [productId]: next }));
@@ -65,37 +86,17 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const product of initialProducts) {
-      set.add(categoryKey(product));
+      set.add(getPublicCatalogCategoryKey(product));
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [initialProducts]);
 
   const filtered = useMemo(() => {
-    const term = normalizeText(search.trim());
-    return initialProducts.filter((product) => {
-      if (activeCategory !== ALL_CATEGORIES && categoryKey(product) !== activeCategory) {
-        return false;
-      }
-      if (term) {
-        const matchesName = normalizeText(product.name).includes(term);
-        const matchesCategory = normalizeText(product.category ?? "").includes(term);
-        if (!matchesName && !matchesCategory) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [initialProducts, search, activeCategory]);
+    return filterPublicCatalogProducts(initialProducts, { activeTab, search });
+  }, [activeTab, initialProducts, search]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, PublicProductDto[]>();
-    for (const product of filtered) {
-      const key = categoryKey(product);
-      const list = map.get(key) ?? [];
-      list.push(product);
-      map.set(key, list);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return groupPublicCatalogProducts(filtered);
   }, [filtered]);
 
   function handleAdd(productId: string) {
@@ -130,28 +131,43 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
         </div>
       </section>
 
-      {categories.length > 1 ? (
-        <nav className="public-category-chips" aria-label="Filtrar por categoria">
+      {categories.length > 0 ? (
+        <nav className="public-category-chips" aria-label="Filtrar produtos">
           <button
             type="button"
-            className={activeCategory === ALL_CATEGORIES ? "chip active" : "chip"}
-            onClick={() => setActiveCategory(ALL_CATEGORIES)}
+            className={activeTab === PUBLIC_CATALOG_ALL_TAB ? "chip active" : "chip"}
+            onClick={() => setActiveTab(PUBLIC_CATALOG_ALL_TAB)}
           >
-            {activeCategory === ALL_CATEGORIES ? (
+            {activeTab === PUBLIC_CATALOG_ALL_TAB ? (
               <Check size={12} aria-hidden />
             ) : (
               <UtensilsCrossed size={12} aria-hidden />
             )}
             Todas
           </button>
+          <button
+            type="button"
+            className={activeTab === PUBLIC_CATALOG_PROMOTIONS_TAB ? "chip active" : "chip"}
+            onClick={() => setActiveTab(PUBLIC_CATALOG_PROMOTIONS_TAB)}
+          >
+            {activeTab === PUBLIC_CATALOG_PROMOTIONS_TAB ? (
+              <Check size={12} aria-hidden />
+            ) : (
+              <Percent size={12} aria-hidden />
+            )}
+            Promoções
+            {promotionalProductsCount > 0 ? (
+              <span className="chip-count">{promotionalProductsCount}</span>
+            ) : null}
+          </button>
           {categories.map((category) => (
             <button
               key={category}
               type="button"
-              className={activeCategory === category ? "chip active" : "chip"}
-              onClick={() => setActiveCategory(category)}
+              className={activeTab === category ? "chip active" : "chip"}
+              onClick={() => setActiveTab(category)}
             >
-              {activeCategory === category ? <Check size={12} aria-hidden /> : null}
+              {activeTab === category ? <Check size={12} aria-hidden /> : null}
               {category}
             </button>
           ))}
@@ -168,7 +184,10 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
             <h2>{category}</h2>
             <ul className="public-product-grid">
               {products.map((product) => (
-                <li key={product.id} className="public-product-card">
+                <li
+                  key={product.id}
+                  className={product.promotion ? "public-product-card promoted" : "public-product-card"}
+                >
                   <Link href={`/produto/${product.id}`} className="public-product-card-link">
                     <img
                       src={buildImageUrl(product)}
@@ -178,9 +197,10 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
                     />
                   </Link>
                   <div className="public-product-card-body">
+                    {product.promotion ? <span className="badge success">Promoção</span> : null}
                     <h3>{product.name}</h3>
                     <div className="public-product-card-meta">
-                      <strong>{formatCurrency(product.priceCents)}</strong>
+                      <ProductPrice product={product} />
                       {stockBadge(product)}
                     </div>
                     <div className="public-product-card-add-row">

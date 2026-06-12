@@ -8,6 +8,7 @@ import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
 import { formatCurrency } from "@/lib/utils/money";
+import { calculatePromotionSavings } from "@/lib/utils/promotion-display";
 
 type PublicCartProps = {
   productsLookup: Record<string, PublicProductDto>;
@@ -39,7 +40,7 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
 
   const total = items.reduce((sum, item) => {
     const product = productsLookup[item.productId];
-    return sum + (product?.priceCents ?? 0) * item.quantity;
+    return sum + (product?.effectivePriceCents ?? 0) * item.quantity;
   }, 0);
 
   function handleClear() {
@@ -77,13 +78,26 @@ export function PublicCart({ productsLookup }: PublicCartProps) {
             );
           }
 
-          const lineTotal = product.priceCents * item.quantity;
+          const lineTotal = product.effectivePriceCents * item.quantity;
+          const savings = product.promotion
+            ? calculatePromotionSavings(product.priceCents, product.effectivePriceCents)
+            : null;
           return (
             <li key={item.productId} className="public-cart-line">
               <ProductMedia product={product} size="lg" />
               <div className="public-cart-line-info">
                 <strong>{product.name}</strong>
-                <span className="muted">{formatCurrency(product.priceCents)} cada</span>
+                {product.promotion ? (
+                  <span className="public-promo-price compact">
+                    <span>De: {formatCurrency(product.priceCents)} cada</span>
+                    <strong>
+                      Por: {formatCurrency(product.effectivePriceCents)} cada
+                    </strong>
+                    {savings ? <span className="discount-badge">{savings.discountLabel}</span> : null}
+                  </span>
+                ) : (
+                  <span className="muted">{formatCurrency(product.priceCents)} cada</span>
+                )}
                 <div className="public-cart-line-quantity">
                   <QuantityStepper
                     value={item.quantity}

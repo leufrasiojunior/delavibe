@@ -2,6 +2,7 @@ import {
   DeliveryMode,
   PaymentMethod,
   Prisma,
+  PromotionType,
   WebOrderStatus,
   WebOrderStatusActorType,
 } from "@prisma/client";
@@ -15,8 +16,10 @@ import {
   type WebOrderListFilters,
   type WebOrderStatusLogDto,
   webOrderCreateInputSchema,
+  webOrderDeliveryFeeInputSchema,
 } from "@/lib/schemas/web-order";
 import { logAuditEvent } from "@/lib/services/audit-service";
+import { selectActivePromotionForTarget } from "@/lib/services/promotion-service";
 import { sendNewOrderPushToAdmins } from "@/lib/services/push-notification-service";
 import {
   cancelingRevertsStock,
@@ -52,6 +55,9 @@ function toItemDto(
   return {
     id: item.id,
     productId: item.productId,
+    promotionId: item.promotionId,
+    promotionType: item.promotionType,
+    originalUnitPriceCents: item.originalUnitPriceCents,
     productName: item.productName,
     quantity: item.quantity,
     unitPriceCents: item.unitPriceCents,
@@ -83,6 +89,7 @@ function toWebOrderDto(order: WebOrderWithRelations): WebOrderDto {
     customerEmail: order.customer.email,
     customerPhone: order.customer.phone,
     status: order.status,
+    deliveryFeeCents: order.deliveryFeeCents,
     totalCents: order.totalCents,
     notes: order.notes,
     addressId: order.addressId,
@@ -184,8 +191,19 @@ export async function createWebOrder(
     }
 
     const productIds = input.items.map((item) => item.productId);
+    const now = new Date();
     const products = await tx.product.findMany({
       where: { id: { in: productIds }, isActive: true },
+      include: {
+        promotions: {
+          where: {
+            isActive: true,
+            startsAt: { lte: now },
+            endsAt: { gt: now },
+            type: { in: [PromotionType.site, PromotionType.both] },
+          },
+        },
+      },
     });
 
     if (products.length !== productIds.length) {
@@ -206,13 +224,23 @@ export async function createWebOrder(
 
     for (const item of input.items) {
       const product = productById.get(item.productId)!;
-      const lineTotal = product.priceCents * item.quantity;
+      const promotion = selectActivePromotionForTarget(
+        product.promotions,
+        "site",
+        product.priceCents,
+        now,
+      );
+      const unitPriceCents = promotion?.promotionalPriceCents ?? product.priceCents;
+      const lineTotal = unitPriceCents * item.quantity;
       totalCents += lineTotal;
       itemRows.push({
         productId: product.id,
+        promotionId: promotion?.id ?? null,
+        promotionType: promotion?.type ?? null,
+        originalUnitPriceCents: promotion ? product.priceCents : null,
         productName: product.name,
         quantity: item.quantity,
-        unitPriceCents: product.priceCents,
+        unitPriceCents,
         lineTotalCents: lineTotal,
       });
     }
@@ -249,6 +277,7 @@ export async function createWebOrder(
         customerId,
         status: WebOrderStatus.PENDING_PAYMENT,
         deliveryMode: input.deliveryMode,
+        deliveryFeeCents: 0,
         totalCents,
         notes: input.notes ?? null,
         addressId: resolvedAddressId,
@@ -356,6 +385,73 @@ export async function getWebOrder(orderId: string): Promise<WebOrderDto | null> 
 }
 
 type WebOrderPaymentInput = { method: PaymentMethod; amountCents: number };
+
+export async function updateWebOrderDeliveryFee(
+  orderId: string,
+  rawInput: unknown,
+  actorUserId: string,
+  ipAddress: string,
+): Promise<WebOrderDto> {
+  const input = webOrderDeliveryFeeInputSchema.parse(rawInput);
+
+  const result = await db.$transaction(async (tx) => {
+    const order = await tx.webOrder.findUnique({
+      where: { id: orderId },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) {
+      throw new AppError(404, "web_order_not_found", "Pedido web não encontrado.");
+    }
+
+    if (
+      order.status === WebOrderStatus.PAID ||
+      order.status === WebOrderStatus.DELIVERED ||
+      order.status === WebOrderStatus.CANCELLED ||
+      order.payments.length > 0
+    ) {
+      throw new AppError(
+        409,
+        "web_order_delivery_fee_locked",
+        "Não é possível alterar o frete depois que o pedido foi pago, entregue ou cancelado.",
+        { status: order.status, paymentCount: order.payments.length },
+        "Ajuste o frete antes de registrar o pagamento do pedido.",
+      );
+    }
+
+    const itemsSubtotalCents = order.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+    const totalCents = itemsSubtotalCents + input.deliveryFee;
+
+    return tx.webOrder.update({
+      where: { id: orderId },
+      data: {
+        deliveryFeeCents: input.deliveryFee,
+        totalCents,
+      },
+      include: webOrderInclude,
+    });
+  });
+
+  await logAuditEvent({
+    actorUserId,
+    action: "web_order.delivery_fee.update",
+    entityType: "web_order",
+    entityId: orderId,
+    ipAddress,
+    metadata: {
+      deliveryFeeCents: result.deliveryFeeCents,
+      totalCents: result.totalCents,
+    },
+  });
+
+  logger.info("web_order_delivery_fee_updated", {
+    orderId,
+    deliveryFeeCents: result.deliveryFeeCents,
+    totalCents: result.totalCents,
+  });
+
+  return toWebOrderDto(result);
+}
 
 export async function updateWebOrderStatus(
   orderId: string,

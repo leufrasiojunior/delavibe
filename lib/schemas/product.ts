@@ -15,6 +15,7 @@ import {
   unitFieldSchema,
 } from "@/lib/schemas/string-fields";
 import { toCents } from "@/lib/utils/money";
+import { promotionSnapshotSchema } from "@/lib/schemas/promotion";
 
 const productFormSchema = z.object({
   name: productNameFieldSchema,
@@ -74,6 +75,7 @@ export const productSchema = z.object({
   stockQty: z.number().int(),
   minimumStock: z.number().int(),
   isActive: z.boolean(),
+  activeLocalPromotion: promotionSnapshotSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -90,7 +92,11 @@ export const publicProductSchema = productSchema.pick({
   stockQty: true,
   minimumStock: true,
   isActive: true,
+  activeLocalPromotion: true,
   updatedAt: true,
+}).extend({
+  effectivePriceCents: z.number().int(),
+  promotion: promotionSnapshotSchema.nullable(),
 });
 
 export const publicProductListSchema = z.array(publicProductSchema);
