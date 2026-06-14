@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, Check, Percent, Plus, Search, UtensilsCrossed } from "lucide-react";
+import { Check, Percent, Plus, Search, UtensilsCrossed } from "lucide-react";
 
-import { ProductMedia } from "@/components/product-media";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
@@ -27,26 +26,6 @@ function buildImageUrl(product: PublicProductDto) {
   }
   const version = Date.parse(product.updatedAt);
   return `${product.imagePath}?v=${Number.isFinite(version) ? version : 0}`;
-}
-
-function stockBadge(product: PublicProductDto) {
-  if (product.stockQty <= 0) {
-    return (
-      <span className="badge danger">
-        <Ban size={12} aria-hidden />
-        Esgotado
-      </span>
-    );
-  }
-  if (product.stockQty <= product.minimumStock) {
-    return (
-      <span className="badge warning">
-        <AlertTriangle size={12} aria-hidden />
-        Poucas unidades
-      </span>
-    );
-  }
-  return null;
 }
 
 function ProductPrice({ product }: { product: PublicProductDto }) {
@@ -208,7 +187,6 @@ export function PublicCatalog({ initialProducts }: PublicCatalogProps) {
                       <h3>{product.name}</h3>
                       <div className="public-product-card-meta">
                         <ProductPrice product={product} />
-                        {stockBadge(product)}
                       </div>
                       <div className="public-product-card-add-row">
                         <QuantityStepper
