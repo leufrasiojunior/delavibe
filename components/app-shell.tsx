@@ -58,13 +58,32 @@ const FOCUSABLE_SELECTOR = [
 export function AppShell({ session, children }: AppShellProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const visibleNavigation = navigation.filter((item) => !item.roles || item.roles.includes(session.user.role));
+  const roleLabel = session.user.role === "admin" ? "Administrador" : "Operador";
 
   // Fecha o drawer ao navegar entre rotas
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
+
+  // Garante que o drawer mobile nao fique aberto ao voltar para desktop.
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1025px)");
+    function syncViewport() {
+      const isDesktop = media.matches;
+      setIsDesktopViewport(isDesktop);
+      if (isDesktop) {
+        setIsMobileMenuOpen(false);
+      }
+    }
+
+    syncViewport();
+    media.addEventListener("change", syncViewport);
+    return () => media.removeEventListener("change", syncViewport);
+  }, []);
 
   // Bloqueia scroll do body quando o drawer está aberto em mobile
   useEffect(() => {
@@ -131,6 +150,38 @@ export function AppShell({ session, children }: AppShellProps) {
 
   return (
     <div className={`app-shell ${isMobileMenuOpen ? "menu-open" : ""}`}>
+      <header className="admin-header">
+        <Link href="/admin/commandas" className="admin-header-brand">
+          <span>Adega Dela's Vibe</span>
+          <strong>Dela's Vibe PDV</strong>
+        </Link>
+
+        <nav className="admin-header-nav" aria-label="Funções administrativas">
+          {visibleNavigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="admin-nav-link">
+                <Icon size={16} aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="admin-header-actions">
+          {isDesktopViewport ? (
+            <>
+              <div className="user-chip">
+                <strong>{session.user.name}</strong>
+                <span>{roleLabel}</span>
+              </div>
+              <PushNotificationToggle />
+              <LogoutButton />
+            </>
+          ) : null}
+        </div>
+      </header>
+
       <header className="mobile-topbar">
         <button
           type="button"
@@ -160,7 +211,7 @@ export function AppShell({ session, children }: AppShellProps) {
         ref={sidebarRef}
         id="app-sidebar"
         className="sidebar"
-        aria-hidden={!isMobileMenuOpen ? undefined : false}
+        aria-hidden={!isMobileMenuOpen}
         tabIndex={-1}
       >
         <div className="brand-panel">
@@ -173,26 +224,28 @@ export function AppShell({ session, children }: AppShellProps) {
         </div>
 
         <nav className="nav-links">
-          {navigation
-            .filter((item) => !item.roles || item.roles.includes(session.user.role))
-            .map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.href} href={item.href} className="nav-link">
-                  <Icon size={18} aria-hidden />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+          {visibleNavigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="nav-link">
+                <Icon size={18} aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-chip">
-            <strong>{session.user.name}</strong>
-            <span>{session.user.role === "admin" ? "Administrador" : "Operador"}</span>
-          </div>
-          <PushNotificationToggle />
-          <LogoutButton />
+          {isDesktopViewport === false ? (
+            <>
+              <div className="user-chip">
+                <strong>{session.user.name}</strong>
+                <span>{roleLabel}</span>
+              </div>
+              <PushNotificationToggle />
+              <LogoutButton />
+            </>
+          ) : null}
         </div>
       </aside>
 

@@ -56,16 +56,109 @@ button {
 }
 
 .app-shell {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
   min-height: 100vh;
   max-width: 100%;
 }
 
-.sidebar {
+.admin-header {
   position: sticky;
   top: 0;
+  z-index: 30;
   display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.5rem;
+  background: rgba(33, 18, 34, 0.96);
+  color: #fff8f6;
+  box-shadow: 0 8px 24px rgba(33, 18, 34, 0.18);
+}
+
+.admin-header-brand {
+  display: grid;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.admin-header-brand span {
+  color: #f4b64f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-header-brand strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+
+.admin-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.15rem 0;
+  scrollbar-width: thin;
+}
+
+.admin-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.62rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff8f6;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.admin-nav-link:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.admin-nav-link svg {
+  flex-shrink: 0;
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.admin-header .user-chip {
+  padding: 0.55rem 0.75rem;
+  border-radius: 14px;
+  min-width: 140px;
+}
+
+.admin-header .user-chip strong,
+.admin-header .user-chip span {
+  font-size: 0.82rem;
+}
+
+.admin-header .button-secondary {
+  color: #fff8f6;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-header .button-secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sidebar {
+  display: none;
   flex-direction: column;
   gap: 1.5rem;
   min-height: 100vh;
@@ -2227,8 +2320,8 @@ button {
 }
 
 @media (max-width: 1024px) {
-  .app-shell {
-    grid-template-columns: 1fr;
+  .admin-header {
+    display: none;
   }
 
   .mobile-topbar {
@@ -2268,6 +2361,7 @@ button {
   }
 
   .sidebar {
+    display: flex;
     position: fixed;
     top: 0;
     left: 0;
@@ -2304,6 +2398,7 @@ button {
 
 @media (min-width: 1025px) {
   .mobile-topbar,
+  .sidebar,
   .sidebar-backdrop {
     display: none;
   }
