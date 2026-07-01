@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AlertTriangle, ArrowLeft, Ban, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ShoppingCart } from "lucide-react";
 
 import { useCart } from "@/lib/hooks/use-cart";
 import { type PublicProductDto } from "@/lib/schemas/product";
@@ -64,21 +64,6 @@ export function PublicProductDetail({ product }: PublicProductDetailProps) {
           ) : (
             <p className="public-product-detail-price">{formatCurrency(product.priceCents)}</p>
           )}
-          {product.stockQty <= 0 ? (
-            <p>
-              <span className="badge danger">
-                <Ban size={12} aria-hidden />
-                Esgotado
-              </span>
-            </p>
-          ) : product.stockQty <= product.minimumStock ? (
-            <p>
-              <span className="badge warning">
-                <AlertTriangle size={12} aria-hidden />
-                Poucas unidades
-              </span>
-            </p>
-          ) : null}
 
           <div className="public-product-detail-controls">
             <label className="field">
